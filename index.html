@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Product Match">
+<meta name="theme-color" content="#0f2f5e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Product Match</title>
+<style>
+:root{--bg:#f2f3f7;--card:#fff;--ink:#141c28;--muted:#6b7686;--line:#e3e7ee;--accent:#1f5fbf;--teal:#0d9488;--good:#16a34a;--warn:#d97706;--bad:#dc2626;--gray:#9aa3af;--band:rgba(31,95,191,.32);--soft:#f6f8fb}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#171d27;--ink:#e7ecf3;--muted:#98a3b3;--line:#283140;--accent:#5b9bff;--band:rgba(91,155,255,.38);--soft:#1e2532}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif}
+body.locked{overflow:hidden}
+header.top{background:linear-gradient(125deg,#0f2f5e,#1f5fbf 60%,#0ea5a4);color:#fff;padding:calc(env(safe-area-inset-top) + 14px) 18px 18px}
+header.top h1{margin:0;font-size:22px;font-weight:700}
+header.top .sub{opacity:.85;font-size:13px;margin-top:2px}
+main{max-width:980px;margin:0 auto;padding:14px 14px calc(env(safe-area-inset-bottom) + 92px)}
+section{margin-bottom:18px}
+h2{font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:6px 4px 8px;font-weight:600}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card{background:var(--card);border-radius:14px;padding:14px;border:1px solid var(--line);margin-bottom:10px}
+.row{display:flex;align-items:baseline;gap:8px}
+.spacer{flex:1}
+.muted{color:var(--muted)}.small{font-size:13px}.xsmall{font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.grid .card{margin:0}
+input,textarea{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:17px}
+textarea{min-height:80px;resize:vertical}
+input:focus,textarea:focus{outline:2px solid var(--accent);border-color:transparent}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--accent);height:30px}
+.inp input[type=number]{margin:8px 0 4px;font-size:20px;font-weight:600}
+.wrow{display:flex;align-items:center;gap:10px;margin-top:8px}
+.wrow input{flex:1}
+.wval{min-width:22px;text-align:right}
+.btn{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--accent);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--bad)}
+.btn.block{display:block;width:100%;margin-top:6px}
+.btn:disabled{opacity:.4}
+.link{background:none;border:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;padding:4px}
+.pill{font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted)}
+.item{cursor:pointer}
+.item-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.item-actions button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;padding:5px 11px}
+.item-actions .danger{color:var(--bad)}
+.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-top:8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border-radius:8px;padding:4px 8px;background:var(--soft);font-size:12px;line-height:1.25}
+.chip b{display:block;font-weight:600;font-variant-numeric:tabular-nums}
+.chip.within{background:color-mix(in srgb,var(--good) 18%,transparent)}
+.chip.near{background:color-mix(in srgb,var(--warn) 18%,transparent)}
+.chip.far{background:color-mix(in srgb,var(--bad) 15%,transparent)}
+.result-top{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.ring{position:relative;width:150px;height:150px;flex:none;margin:0 auto}
+.ring svg{transform:rotate(-90deg)}
+.ring .v{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .v b{font-size:36px;line-height:1}
+.tag{font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--teal)}
+.pname{font-size:24px;font-weight:700;margin:2px 0}
+.summary{flex:1;min-width:220px}
+.fit{padding:10px 0;border-top:1px solid var(--line)}
+.fit .row{flex-wrap:wrap}
+.track{position:relative;height:12px;background:var(--soft);border:1px solid var(--line);border-radius:6px;margin-top:8px}
+.band{position:absolute;top:1px;bottom:1px;background:var(--band);border-radius:5px}
+.marker{position:absolute;top:-6px;width:4px;height:22px;margin-left:-2px;border-radius:2px}
+.st{font-weight:600;font-size:14px;margin-left:auto}
+.c-within{color:var(--good)}.c-near{color:var(--warn)}.c-far{color:var(--bad)}.c-missing,.c-excluded{color:var(--gray)}
+.b-within{background:var(--good)}.b-near{background:var(--warn)}.b-far{background:var(--bad)}.b-missing,.b-excluded{background:var(--gray)}
+.alts{display:flex;gap:8px;overflow-x:auto;margin-top:12px;align-items:center}
+.alts button{flex:none;font:inherit;font-size:14px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:6px 12px}
+.rank{display:flex;align-items:center;gap:12px}
+.badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;background:var(--soft);flex:none;font-variant-numeric:tabular-nums}
+.badge.first{background:var(--accent);color:#fff}
+.sbar{width:80px;height:8px;border-radius:4px;background:var(--soft);overflow:hidden;flex:none}
+.sbar i{display:block;height:100%}
+.pct{font-weight:700;width:46px;text-align:right;font-variant-numeric:tabular-nums}
+.sel{outline:2px solid var(--accent)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:4px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+.empty{text-align:center;padding:28px 12px}
+.empty .big{font-size:40px}
+.warn-text{color:var(--warn)}.err-text{color:var(--bad)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 2px 5px}
+.pair{display:flex;gap:8px;align-items:center}
+.pair span{color:var(--muted)}
+.issue{font-size:13px;padding:6px 0;border-top:1px solid var(--line)}
+.issue:first-child{border-top:0}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:6px 6px calc(env(safe-area-inset-bottom) + 6px);z-index:5}
+nav.tabs button{flex:1;background:none;border:0;color:var(--muted);font:inherit;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;cursor:pointer}
+nav.tabs button svg{width:24px;height:24px}
+nav.tabs button.on{color:var(--accent)}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+.sheet.hidden{display:none}
+.sheet-card{background:var(--bg);width:100%;max-width:640px;height:calc(100% - env(safe-area-inset-top) - 12px);border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--card)}
+.sheet-head b{font-size:16px}
+.sheet-body{flex:1;overflow-y:auto;padding:16px 14px calc(env(safe-area-inset-bottom) + 30px);-webkit-overflow-scrolling:touch}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translateX(-50%);background:#141c28;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20;max-width:90%;text-align:center}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 id="title">Product Match</h1>
+  <div class="sub" id="subtitle"></div>
+</header>
+<main id="view"></main>
+
+<nav class="tabs">
+  <button data-tab="match"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Match</button>
+  <button data-tab="params"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Parameters</button>
+  <button data-tab="products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>Products</button>
+  <button data-tab="data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Data</button>
+</nav>
+
+<div id="sheet" class="sheet hidden">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <button class="link" id="sheetCancel">Cancel</button>
+      <b id="sheetTitle"></b>
+      <button class="link" id="sheetSave">Save</button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+<input type="file" id="fileIn" accept=".csv,text/csv,text/plain" hidden>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ======================= STATE & STORAGE ======================= */
+const KEY = 'productMatch.state.v1';
+const $ = s => document.querySelector(s);
+const view = $('#view');
+let S = load();
+
+function blank(){ return {title:'Product Match', parameters:[], products:[], inputs:{}, tab:null, selectedId:null, lastExport:null}; }
+function fix(s){
+  s.parameters = Array.isArray(s.parameters) ? s.parameters : [];
+  s.products = Array.isArray(s.products) ? s.products : [];
+  s.inputs = s.inputs || {};
+  s.parameters.forEach(p => { if (p.weight == null || isNaN(p.weight)) p.weight = 5; });
+  s.products.forEach(p => { p.ranges = p.ranges || {}; });
+  return s;
+}
+function load(){
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.parameters) return fix(s); } catch (e) {}
+  return blank();
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { toast('Unable to save on this device. Export a CSV backup.'); }
+}
+
+/* ======================= UTILITIES ======================= */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function num(v){
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim().replace(/[,$]/g, '');
+  if (t === '') return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+}
+function fmt(v){
+  if (v == null || isNaN(v)) return '—';
+  const a = Math.abs(v);
+  return Number(v).toLocaleString(undefined, {maximumFractionDigits: a >= 100 ? 0 : a >= 10 ? 1 : 3});
+}
+const plain = v => v == null ? '' : String(v);
+function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2800); }
+const configured = () => S.parameters.length > 0 && S.products.length > 0;
+function localDate(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+/* ======================= SCORING ======================= */
+// 100% when the input is within the product's range. Outside it, the score falls linearly
+// with distance from the nearest limit, reaching 0% at one-half of the reference span
+// (the parameter's allowable range if entered, otherwise the span of all products).
+// Overall score = weighted average using each parameter's weight (0 = excluded).
+function rng(pr, p){
+  const r = pr.ranges[p.id];
+  if (!r || r[0] == null || r[1] == null) return null;
+  return [Math.min(r[0], r[1]), Math.max(r[0], r[1])];
+}
+function productExtent(p){
+  let lo = Infinity, hi = -Infinity;
+  S.products.forEach(pr => { const r = rng(pr, p); if (r) { lo = Math.min(lo, r[0]); hi = Math.max(hi, r[1]); } });
+  return lo === Infinity ? null : [lo, hi];
+}
+function extent(p){
+  const e = productExtent(p);
+  let lo = e ? e[0] : Infinity, hi = e ? e[1] : -Infinity;
+  if (p.min != null) lo = Math.min(lo, p.min);
+  if (p.max != null) hi = Math.max(hi, p.max);
+  return lo === Infinity || hi === -Infinity ? [0, 1] : [lo, hi];
+}
+function refSpan(p){
+  if (p.min != null && p.max != null && p.max > p.min) return p.max - p.min;
+  const e = productExtent(p);
+  if (!e) return 1;
+  return e[1] - e[0] > 0 ? e[1] - e[0] : Math.max(Math.abs(e[1]), 1);
+}
+function rank(){
+  const act = S.parameters.filter(p => S.inputs[p.id] != null);
+  const weighted = act.filter(p => p.weight > 0);
+  const spans = {}; act.forEach(p => spans[p.id] = refSpan(p));
+  const res = S.products.map(pr => {
+    let ws = 0, ss = 0, within = 0; const fits = {};
+    act.forEach(p => {
+      const v = S.inputs[p.id], r = rng(pr, p);
+      let s = 0, st = 'missing', d = null;
+      if (r) {
+        if (v >= r[0] && v <= r[1]) { s = 100; st = 'within'; }
+        else { d = v < r[0] ? v - r[0] : v - r[1]; s = Math.max(0, 100 - 200 * Math.abs(d) / spans[p.id]); st = s >= 60 ? 'near' : 'far'; }
+      }
+      if (p.weight > 0) { ws += p.weight; ss += p.weight * s; if (st === 'within') within++; }
+      fits[p.id] = {s, st, d, v, r, excluded: !(p.weight > 0)};
+    });
+    return {pr, score: ws ? ss / ws : 0, within, n: weighted.length, fits};
+  });
+  res.sort((a, b) => b.score - a.score || b.within - a.within || a.pr.name.localeCompare(b.pr.name));
+  return {res, act, weighted};
+}
+
+/* ======================= VALIDATION ======================= */
+function issues(){
+  const out = [], seen = new Set();
+  S.parameters.forEach(p => {
+    const n = (p.name || '').trim();
+    if (!n) out.push('A parameter has no name.');
+    else if (seen.has(n.toLowerCase())) out.push(`Duplicate parameter name "${n}". Names must be unique for CSV import/export.`);
+    seen.add(n.toLowerCase());
+    if (p.min != null && p.max != null && p.min > p.max) out.push(`${n}: allowable minimum exceeds maximum.`);
+  });
+  S.products.forEach(pr => S.parameters.forEach(p => {
+    const raw = pr.ranges[p.id] || [null, null];
+    if (raw[0] == null || raw[1] == null) { out.push(`${pr.name}: no complete range for ${p.name}; this parameter scores 0% for this product.`); return; }
+    if (raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
+    const r = rng(pr, p);
+    if (p.min != null && r[0] < p.min) out.push(`${pr.name}: ${p.name} range extends below the allowable minimum.`);
+    if (p.max != null && r[1] > p.max) out.push(`${pr.name}: ${p.name} range extends above the allowable maximum.`);
+  }));
+  return out;
+}
+
+/* ======================= NAVIGATION ======================= */
+function setTab(tab){
+  S.tab = tab; save();
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#title').textContent = S.title || 'Product Match';
+  document.title = S.title || 'Product Match';
+  $('#subtitle').textContent = `${S.parameters.length} parameters · ${S.products.length} products`;
+  window.scrollTo(0, 0);
+  ({match: renderMatch, params: renderParams, products: renderProducts, data: renderData})[tab]();
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab],[data-go]');
+  if (t) setTab(t.dataset.tab || t.dataset.go);
+});
+
+/* ======================= MATCH TAB ======================= */
+function renderMatch(){
+  if (!configured()) {
+    view.innerHTML = `<div class="card empty"><div class="big">🎯</div><p><b>Setup required</b></p>
+      <p class="muted small">Define parameters and enter products before matching, or import a CSV settings file.</p>
+      <button class="btn primary" data-go="${S.parameters.length ? 'products' : 'params'}">${S.parameters.length ? 'Enter products' : 'Define parameters'}</button>
+      <button class="btn" data-go="data">Import CSV</button></div>`;
+    return;
+  }
+  view.innerHTML = `
+    <section><div class="sec-h"><h2>Input Parameters</h2><button class="link" id="clearIn">Clear inputs</button></div>
+      <div class="grid">${S.parameters.map(inputCard).join('')}</div></section>
+    <section><h2>Result</h2><div id="result"></div></section>
+    <section><h2 id="listTitle">All Products</h2><div id="list"></div>
+      <div class="legend"><span style="--c:var(--good)">Within range</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far</span><span style="--c:var(--gray)">Excluded / no data</span></div></section>`;
+  view.querySelectorAll('[data-in]').forEach(el => el.addEventListener('input', () => {
+    const v = num(el.value);
+    if (v == null) delete S.inputs[el.dataset.in]; else S.inputs[el.dataset.in] = v;
+    S.selectedId = null; save(); updateMatch();
+  }));
+  view.querySelectorAll('[data-w]').forEach(el => el.addEventListener('input', () => {
+    const p = S.parameters.find(x => x.id === el.dataset.w);
+    p.weight = Number(el.value);
+    view.querySelector(`[data-wv="${p.id}"]`).textContent = p.weight;
+    save(); updateMatch();
+  }));
+  $('#clearIn').onclick = () => { S.inputs = {}; S.selectedId = null; save(); renderMatch(); };
+  updateMatch();
+}
+function inputCard(p){
+  const v = S.inputs[p.id];
+  return `<div class="card inp">
+    <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">${esc(p.unit)}</span></div>
+    <input type="number" step="any" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
+    <div class="xsmall" data-hint="${p.id}"></div>
+    ${p.details ? `<div class="xsmall muted clamp" style="margin-top:3px">${esc(p.details)}</div>` : ''}
+    <div class="wrow"><span class="small muted">Weight</span><input type="range" min="0" max="10" step="1" data-w="${p.id}" value="${p.weight}" aria-label="Weight for ${esc(p.name)}"><b class="wval" data-wv="${p.id}">${p.weight}</b></div>
+    <div class="xsmall muted" data-inf="${p.id}"></div>
+  </div>`;
+}
+function updateMatch(){
+  const {res, act, weighted} = rank();
+  const totalW = weighted.reduce((a, p) => a + p.weight, 0);
+  // hints and weight influence
+  S.parameters.forEach(p => {
+    const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), inf = view.querySelector(`[data-inf="${p.id}"]`);
+    const hasRange = p.min != null || p.max != null;
+    const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
+    if (h) {
+      const e = productExtent(p);
+      h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
+      h.textContent = out ? `Outside allowable range ${fmt(p.min)} – ${fmt(p.max)}`
+        : hasRange ? `Allowable: ${fmt(p.min)} – ${fmt(p.max)}`
+        : e ? `Products cover ${fmt(e[0])} – ${fmt(e[1])}` : 'No product data';
+    }
+    if (inf) inf.textContent = v == null ? 'Not included (no value entered)'
+      : !(p.weight > 0) ? 'Excluded from score (weight 0)'
+      : `${Math.round(p.weight / totalW * 100)}% of overall match score`;
+  });
+  // center result
+  const box = $('#result');
+  const shown = act.length ? (res.find(r => r.pr.id === S.selectedId) || res[0]) : null;
+  if (!shown) {
+    box.innerHTML = `<div class="card empty muted"><div class="big">☝️</div>Enter one or more parameters above to identify the best-matching product.</div>`;
+  } else if (!weighted.length) {
+    box.innerHTML = `<div class="card empty muted">All entered parameters have a weight of 0. Increase at least one weight to calculate a match.</div>`;
+  } else {
+    const isBest = shown === res[0];
+    const C = 2 * Math.PI * 64, col = shown.score >= 95 ? 'var(--good)' : shown.score >= 60 ? 'var(--warn)' : 'var(--bad)';
+    const fits = act.map(p => fitRow(p, shown.fits[p.id])).join('');
+    const alts = res.filter(r => r !== shown).slice(0, 3).map(r => `<button data-pick="${r.pr.id}">${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
+    box.innerHTML = `<div class="card">
+      <div class="result-top">
+        <div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="64" fill="none" stroke="var(--soft)" stroke-width="13"/>
+          <circle cx="75" cy="75" r="64" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - shown.score / 100)}" style="transition:stroke-dashoffset .4s"/></svg>
+          <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span></div></div>
+        <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
+          <div class="pname">${esc(shown.pr.name)}</div>
+          ${shown.pr.notes ? `<div class="muted small">${esc(shown.pr.notes)}</div>` : ''}
+          <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> weighted parameters within the product's allowable range.</div></div>
+      </div>
+      <div style="margin-top:12px">${fits}</div>
+      ${alts ? `<div class="alts"><span class="small muted">${isBest ? 'Alternatives:' : 'Other candidates:'}</span>${alts}</div>` : ''}
+    </div>`;
+    box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.selectedId = b.dataset.pick; save(); updateMatch(); });
+  }
+  // ranked list
+  $('#listTitle').textContent = act.length ? 'All Products – Ranked by Match' : 'All Products';
+  $('#list').innerHTML = res.map((r, i) => {
+    const sc = r.score >= 95 ? 'var(--good)' : r.score >= 60 ? 'var(--warn)' : 'var(--bad)';
+    const scored = act.length && weighted.length;
+    const chips = S.parameters.map(p => {
+      const f = r.fits[p.id], rr = rng(r.pr, p);
+      const cls = f && !f.excluded ? f.st : '';
+      return `<div class="chip ${cls}"><span class="muted">${esc(p.name)}</span><b>${rr ? fmt(rr[0]) + '–' + fmt(rr[1]) : '—'}</b></div>`;
+    }).join('');
+    return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
+      <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted">${esc(r.pr.notes)}</div>` : ''}</div>
+        ${scored ? `<div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div>` : ''}</div>
+      <div class="chips">${chips}</div></div>`;
+  }).join('');
+  $('#list').querySelectorAll('[data-row]').forEach(el => el.onclick = () => {
+    if (!act.length) return;
+    S.selectedId = el.dataset.row; save(); updateMatch();
+    $('#result').scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+}
+function fitRow(p, f){
+  const st = f.excluded ? 'excluded' : f.st;
+  let txt = f.excluded ? 'Excluded (weight 0)' : f.st === 'within' ? 'Within range' : f.st === 'missing' ? 'No data'
+    : (f.d < 0 ? 'Below by ' : 'Above by ') + fmt(Math.abs(f.d)) + (p.unit ? ' ' + p.unit : '');
+  const [e0, e1] = extent(p);
+  let lo = Math.min(e0, f.v), hi = Math.max(e1, f.v);
+  if (hi <= lo) hi = lo + Math.max(Math.abs(lo) * 0.1, 1);
+  const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+  const pos = x => ((x - lo) / (hi - lo) * 100).toFixed(2);
+  const band = f.r ? `<div class="band" style="left:${pos(f.r[0])}%;width:${Math.max(pos(f.r[1]) - pos(f.r[0]), 1.5)}%"></div>` : '';
+  return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
+    <span class="xsmall muted">${f.r ? fmt(f.r[0]) + '–' + fmt(f.r[1]) : '—'} ${esc(p.unit)} · W${p.weight}</span>
+    <span class="st c-${st}">${esc(txt)}</span></div>
+    <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div></div>`;
+}
+
+/* ======================= PARAMETERS TAB ======================= */
+function renderParams(){
+  view.innerHTML = `
+    <section><h2>Selector Title</h2><div class="card"><input id="titleIn" value="${esc(S.title)}" placeholder="Title"></div></section>
+    <section><div class="sec-h"><h2>Parameters</h2><button class="btn primary" id="addP">+ Add</button></div>
+      ${S.parameters.length ? S.parameters.map((p, i) => `
+        <div class="card item" data-edit="${p.id}">
+          <div class="row"><b>${esc(p.name)}</b><span class="muted small">${esc(p.unit)}</span><span class="spacer"></span><span class="pill">Weight ${p.weight}</span></div>
+          <div class="small muted">Allowable range: ${fmt(p.min)} – ${fmt(p.max)}</div>
+          ${p.details ? `<div class="small muted clamp">${esc(p.details)}</div>` : ''}
+          <div class="item-actions"><button data-up="${p.id}" ${i ? '' : 'disabled'}>Move up</button><button data-down="${p.id}" ${i < S.parameters.length - 1 ? '' : 'disabled'}>Move down</button><button class="danger" data-del="${p.id}">Delete</button></div>
+        </div>`).join('') : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, units, allowable range, weight and description.</div>`}
+      <p class="xsmall muted" style="margin:4px">Weight (0–10) sets each parameter's share of the overall match score. 0 excludes the parameter. Weights can also be adjusted on the Match screen.</p>
+    </section>
+    ${S.parameters.length ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : ''}`;
+  $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; };
+  $('#addP').onclick = () => editParam(null);
+  view.querySelectorAll('[data-edit]').forEach(el => el.onclick = e => {
+    const b = e.target.closest('button');
+    if (b) {
+      e.stopPropagation();
+      const id = b.dataset.up || b.dataset.down || b.dataset.del, i = S.parameters.findIndex(p => p.id === id);
+      if (b.dataset.del) {
+        if (!confirm(`Delete "${S.parameters[i].name}"? Its values will be removed from all products.`)) return;
+        S.parameters.splice(i, 1); S.products.forEach(pr => delete pr.ranges[id]); delete S.inputs[id];
+      } else {
+        const j = b.dataset.up ? i - 1 : i + 1; [S.parameters[i], S.parameters[j]] = [S.parameters[j], S.parameters[i]];
+      }
+      save(); setTab('params'); return;
+    }
+    editParam(el.dataset.edit);
+  });
+}
+function editParam(id){
+  const p = id ? S.parameters.find(x => x.id === id) : {id: uid('p'), name: '', unit: '', min: null, max: null, weight: 5, details: ''};
+  openSheet(id ? 'Edit Parameter' : 'New Parameter', `
+    <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Airflow"></div>
+    <div class="field"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="e.g., CFM"></div>
+    <div class="field"><label>Allowable range (optional)</label>
+      <div class="pair"><input id="fMin" type="number" step="any" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" step="any" value="${plain(p.max)}" placeholder="Maximum"></div>
+      <div class="xsmall muted" style="margin:5px 2px">Inputs outside this range are flagged. The range also sets how quickly the score drops outside a product's range.</div></div>
+    <div class="field"><label>Weight: <span id="fWv">${p.weight}</span> of 10</label>
+      <input id="fW" type="range" min="0" max="10" step="1" value="${p.weight}">
+      <div class="xsmall muted" style="margin:0 2px">0 = excluded · 5 = standard · 10 = critical</div></div>
+    <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Basis, test standard, or notes">${esc(p.details)}</textarea></div>
+    <div id="fErr" class="small err-text"></div>`,
+    () => {
+      const name = $('#fName').value.trim(), min = num($('#fMin').value), max = num($('#fMax').value);
+      if (!name) return 'Enter a parameter name.';
+      if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return 'A parameter with this name already exists.';
+      if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
+      Object.assign(p, {name, unit: $('#fUnit').value.trim(), min, max, weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
+      if (!id) S.parameters.push(p);
+      save(); setTab('params');
+    },
+    () => { $('#fW').oninput = e => $('#fWv').textContent = e.target.value; if (!id) $('#fName').focus(); });
+}
+
+/* ======================= PRODUCTS TAB ======================= */
+function renderProducts(){
+  if (!S.parameters.length) {
+    view.innerHTML = `<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as a lower and upper value for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`;
+    return;
+  }
+  view.innerHTML = `<section><div class="sec-h"><h2>Products</h2><button class="btn primary" id="addPr">+ Add</button></div>
+    ${S.products.length ? S.products.map(pr => {
+      const done = S.parameters.filter(p => rng(pr, p)).length;
+      return `<div class="card item" data-edit="${pr.id}">
+        <div class="row"><b>${esc(pr.name)}</b><span class="spacer"></span><span class="xsmall ${done === S.parameters.length ? 'muted' : 'warn-text'}">${done}/${S.parameters.length} ranges</span></div>
+        ${pr.notes ? `<div class="xsmall muted">${esc(pr.notes)}</div>` : ''}
+        <div class="chips">${S.parameters.map(p => { const r = rng(pr, p); return `<div class="chip"><span class="muted">${esc(p.name)}</span><b>${r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'}</b></div>`; }).join('')}</div>
+        <div class="item-actions"><button data-dup="${pr.id}">Duplicate</button><button class="danger" data-del="${pr.id}">Delete</button></div>
+      </div>`; }).join('') : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product and its allowable range for each parameter.</div>`}
+    </section>
+    ${configured() ? `<button class="btn primary block" data-go="match">Go to Match →</button>` : ''}`;
+  $('#addPr').onclick = () => editProduct(null);
+  view.querySelectorAll('[data-edit]').forEach(el => el.onclick = e => {
+    const b = e.target.closest('button');
+    if (b) {
+      e.stopPropagation();
+      const id = b.dataset.dup || b.dataset.del, i = S.products.findIndex(p => p.id === id);
+      if (b.dataset.del) { if (!confirm(`Delete "${S.products[i].name}"?`)) return; S.products.splice(i, 1); }
+      else { const c = JSON.parse(JSON.stringify(S.products[i])); c.id = uid('r'); c.name += ' (copy)'; S.products.splice(i + 1, 0, c); }
+      save(); setTab('products'); return;
+    }
+    editProduct(el.dataset.edit);
+  });
+}
+function editProduct(id){
+  const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', ranges: {}};
+  openSheet(id ? 'Edit Product' : 'New Product', `
+    <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
+    <div class="field"><label>Notes (optional)</label><input id="fNotes" value="${esc(pr.notes)}"></div>
+    ${S.parameters.map(p => { const r = pr.ranges[p.id] || [null, null]; return `
+      <div class="field"><label>${esc(p.name)}${p.unit ? ' (' + esc(p.unit) + ')' : ''}</label>
+        <div class="pair"><input type="number" step="any" data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="any" data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>
+        <div class="xsmall" data-pw="${p.id}" style="margin:5px 2px"></div></div>`; }).join('')}
+    <div id="fErr" class="small err-text"></div>`,
+    () => {
+      const name = $('#fName').value.trim();
+      if (!name) return 'Enter a product name.';
+      const ranges = {};
+      S.parameters.forEach(p => {
+        const lo = num(document.querySelector(`[data-lo="${p.id}"]`).value), hi = num(document.querySelector(`[data-hi="${p.id}"]`).value);
+        if (lo != null || hi != null) ranges[p.id] = [lo, hi];
+      });
+      Object.assign(pr, {name, notes: $('#fNotes').value.trim(), ranges});
+      if (!id) S.products.push(pr);
+      save(); setTab('products');
+    },
+    () => {
+      const check = p => {
+        const lo = num(document.querySelector(`[data-lo="${p.id}"]`).value), hi = num(document.querySelector(`[data-hi="${p.id}"]`).value);
+        const w = document.querySelector(`[data-pw="${p.id}"]`);
+        let m = '', warn = true;
+        if ((lo == null) !== (hi == null)) m = 'Enter both a lower and an upper value.';
+        else if (lo != null && lo > hi) m = 'Lower value exceeds upper value.';
+        else if (lo != null && p.min != null && Math.min(lo, hi) < p.min) m = `Range extends below the allowable minimum (${fmt(p.min)}).`;
+        else if (lo != null && p.max != null && Math.max(lo, hi) > p.max) m = `Range extends above the allowable maximum (${fmt(p.max)}).`;
+        else if (p.min != null || p.max != null) { m = `Allowable: ${fmt(p.min)} – ${fmt(p.max)}`; warn = false; }
+        w.textContent = m; w.className = 'xsmall ' + (warn ? 'warn-text' : 'muted');
+      };
+      S.parameters.forEach(p => {
+        check(p);
+        document.querySelectorAll(`[data-lo="${p.id}"],[data-hi="${p.id}"]`).forEach(i => i.oninput = () => check(p));
+      });
+      if (!id) $('#fName').focus();
+    });
+}
+
+/* ======================= DATA TAB ======================= */
+function renderData(){
+  const list = issues();
+  view.innerHTML = `
+    <section><h2>Settings File (CSV)</h2><div class="card">
+      <p class="small muted" style="margin-top:0">Import or export all parameters, weights and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
+      <div class="pair"><button class="btn" id="impBtn" style="flex:1">Import CSV</button><button class="btn primary" id="expBtn" style="flex:1" ${S.parameters.length ? '' : 'disabled'}>Export CSV</button></div>
+      <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p>
+    </div></section>
+    <section><h2>Review</h2><div class="card">
+      ${list.length ? `<div class="small warn-text" style="margin-bottom:6px"><b>${list.length} item(s) need attention</b></div>${list.map(t => `<div class="issue">${esc(t)}</div>`).join('')}`
+        : `<div class="small c-within">No inconsistencies found.</div>`}
+    </div></section>
+    <section><h2>Other</h2><div class="card">
+      <button class="btn block" id="sampleBtn">Load sample data</button>
+      <button class="btn danger block" id="resetBtn">Erase all data</button>
+      <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p>
+    </div></section>`;
+  $('#impBtn').onclick = () => $('#fileIn').click();
+  $('#expBtn').onclick = exportCSV;
+  $('#sampleBtn').onclick = () => {
+    if ((S.parameters.length || S.products.length) && !confirm('Replace current parameters and products with sample data?')) return;
+    const keepTab = S.tab; S = sample(); S.tab = keepTab; save(); setTab('data'); toast('Sample data loaded');
+  };
+  $('#resetBtn').onclick = () => {
+    if (!confirm('Erase all parameters, products and inputs from this device? Export a CSV first if a backup is needed.')) return;
+    S = blank(); save(); setTab('params');
+  };
+}
+
+/* ======================= CSV ======================= */
+const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+function toCSV(){
+  const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'], ['Name', 'Unit', 'Range Min', 'Range Max', 'Weight', 'Description']];
+  S.parameters.forEach(p => rows.push([p.name, p.unit, plain(p.min), plain(p.max), plain(p.weight), p.details]));
+  rows.push([], ['[PRODUCTS]']);
+  const h = ['Product', 'Notes']; S.parameters.forEach(p => h.push(p.name + ' Lower', p.name + ' Upper')); rows.push(h);
+  S.products.forEach(pr => { const r = [pr.name, pr.notes]; S.parameters.forEach(p => { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }); rows.push(r); });
+  return rows.map(r => r.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+function parseRows(t){
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; }
+    else if (c !== '\r' && c !== '﻿') f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+function splitBound(h){
+  const sfx = [[' minimum', 0], [' maximum', 1], [' lower', 0], [' upper', 1], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
+  const l = h.toLowerCase();
+  for (const [s, i] of sfx) if (l.endsWith(s)) { const b = h.slice(0, -s.length).trim(); if (b) return [b, i]; }
+  return null;
+}
+function fromCSV(text){
+  const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
+  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1;
+  for (const row of rows) {
+    if (row.every(x => !x.trim())) continue;
+    const first = (row[0] || '').trim();
+    if (/^\[.*\]$/.test(first)) { section = first.toUpperCase(); pHead = null; cols = null; continue; }
+    if (section === '[SETTINGS]') { if (first.toLowerCase() === 'title' && row.length > 1) out.title = row[1].trim(); }
+    else if (section === '[PARAMETERS]') {
+      if (!pHead) { pHead = {}; row.forEach((h, i) => pHead[h.trim().toLowerCase()] = i); continue; }
+      const col = keys => { for (const k of keys) if (pHead[k] != null && pHead[k] < row.length) return row[pHead[k]]; return undefined; };
+      const name = (col(['name', 'parameter']) || '').trim();
+      if (!name) continue;
+      if (out.parameters.some(p => p.name.toLowerCase() === name.toLowerCase())) { notes.push(`Duplicate parameter "${name}" was ignored.`); continue; }
+      let w = num(col(['weight']));
+      w = w == null ? 5 : Math.max(0, Math.min(10, Math.round(w)));
+      out.parameters.push({id: uid('p'), name, unit: (col(['unit', 'units']) || '').trim(), min: num(col(['range min', 'min', 'minimum'])), max: num(col(['range max', 'max', 'maximum'])), weight: w, details: (col(['description', 'details']) || '').trim()});
+    }
+    else if (section === '[PRODUCTS]') {
+      if (!cols) {
+        cols = []; nameIdx = 0; notesIdx = -1;
+        row.forEach((raw, i) => {
+          const h = raw.trim(), l = h.toLowerCase();
+          if (['product', 'name', 'model'].includes(l)) nameIdx = i;
+          else if (['notes', 'note', 'description'].includes(l)) notesIdx = i;
+          else { const b = splitBound(h); if (b) {
+            let p = out.parameters.find(x => x.name.toLowerCase() === b[0].toLowerCase());
+            if (!p) { p = {id: uid('p'), name: b[0], unit: '', min: null, max: null, weight: 5, details: ''}; out.parameters.push(p); notes.push(`Parameter "${b[0]}" was found only in the product columns and was added without units or range.`); }
+            cols.push([i, p.id, b[1]]);
+          } }
+        });
+        continue;
+      }
+      const name = (row[nameIdx] || '').trim();
+      if (!name) continue;
+      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', ranges: {}};
+      cols.forEach(([i, pid, b]) => { const r = pr.ranges[pid] || [null, null]; r[b] = num(row[i]); pr.ranges[pid] = r; });
+      out.products.push(pr);
+    }
+  }
+  if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Unit, Range Min, Range Max, Weight, Description).');
+  return {data: out, notes};
+}
+$('#fileIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const {data, notes} = fromCSV(await f.text());
+    if ((S.parameters.length || S.products.length) &&
+        !confirm(`Replace current settings with ${data.parameters.length} parameters and ${data.products.length} products from ${f.name}?`)) return;
+    S.title = data.title || S.title; S.parameters = data.parameters; S.products = data.products; S.inputs = {}; S.selectedId = null;
+    save(); setTab('data');
+    alert(`Imported ${data.parameters.length} parameters and ${data.products.length} products.` + (notes.length ? '\n\n' + notes.join('\n') : ''));
+  } catch (err) { alert('Import failed: ' + err.message); }
+};
+async function exportCSV(){
+  const name = `ProductMatch-Settings-${localDate()}.csv`;
+  const file = new File(['﻿' + toCSV()], name, {type: 'text/csv'});
+  const done = () => { S.lastExport = Date.now(); save(); if (S.tab === 'data') renderData(); };
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    try { await navigator.share({files: [file], title: name}); done(); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  done(); toast('Exported ' + name);
+}
+
+/* ======================= SHEET (editor dialog) ======================= */
+let sheetSave = null;
+function openSheet(title, html, onSave, onMount){
+  $('#sheetTitle').textContent = title; $('#sheetBody').innerHTML = html; $('#sheetBody').scrollTop = 0;
+  sheetSave = onSave; $('#sheet').classList.remove('hidden'); document.body.classList.add('locked');
+  if (onMount) onMount();
+}
+function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; }
+$('#sheetCancel').onclick = closeSheet;
+$('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet(); };
+
+/* ======================= SAMPLE DATA ======================= */
+function sample(){
+  const defs = [['Airflow', 'CFM', 500, 25000, 8, 'Design supply airflow.'], ['External Static Pressure', 'in. w.c.', 0, 8, 6, 'External static pressure at design airflow.'],
+    ['Cooling Capacity', 'MBH', 10, 600, 8, 'Total cooling capacity at design conditions.'], ['Sound Power', 'dBA', 50, 90, 4, 'Maximum discharge sound power level.'],
+    ['Operating Weight', 'lb', 200, 6000, 3, 'Operating weight for structural coordination.']];
+  const params = defs.map(d => ({id: uid('p'), name: d[0], unit: d[1], min: d[2], max: d[3], weight: d[4], details: d[5]}));
+  const rows = [['Unit AH-06', 'Compact horizontal', [[1200, 2400], [0.5, 1.5], [30, 60], [62, 70], [450, 600]]], ['Unit AH-10', 'Horizontal / vertical', [[2000, 4000], [0.5, 2], [50, 100], [64, 73], [600, 850]]],
+    ['Unit AH-15', 'Modular, ECM fans', [[3500, 6000], [1, 2.5], [90, 150], [66, 75], [900, 1250]]], ['Unit AH-20', 'Modular, fan array', [[5000, 8000], [1, 3], [120, 200], [67, 76], [1200, 1600]]],
+    ['Unit AH-25', 'Indoor, double-wall', [[6500, 10000], [1.5, 3.5], [160, 250], [69, 78], [1500, 2100]]], ['Unit AH-30', 'Outdoor rated', [[8000, 12000], [1.5, 4], [200, 300], [70, 80], [2000, 2800]]],
+    ['Unit AH-40', 'Custom casing', [[10000, 16000], [2, 5], [260, 400], [72, 82], [2600, 3600]]], ['Unit AH-50', 'Custom, fan array', [[14000, 20000], [2, 6], [340, 500], [74, 84], [3300, 4500]]]];
+  const products = rows.map(r => ({id: uid('r'), name: r[0], notes: r[1], ranges: Object.fromEntries(params.map((p, i) => [p.id, r[2][i]]))}));
+  return {title: 'Air Handling Unit Selector', parameters: params, products, inputs: {}, tab: null, selectedId: null, lastExport: null};
+}
+
+/* ======================= START ======================= */
+setTab(S.tab || (configured() ? 'match' : 'params'));
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
