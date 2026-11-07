@@ -34,10 +34,12 @@ All changes, inputs and weights are saved automatically on the device.
 
 Selected from the Type drop-down in the parameter editor:
 - **cm:** values to the nearest 0.1 cm.
-- **%:** whole percent; range defaults to 0–100 unless an allowable range is entered.
+- **%:** design inputs in 25% increments; range defaults to 0–100 unless an allowable range is entered.
 - **Y/N:** drop-down on the Match screen; each product is set to Yes, No or Either.
 
-The Match-screen slider has one position per whole unit of the range (0–1 = 2 positions, 1–3 = 3 positions). Non-whole spans are divided evenly so both ends are reachable. Typed values keep the type's accuracy.
+The Match-screen slider moves at the type's resolution: 0.1 cm steps for cm, 25% steps for %. Typed inputs are rounded to the same resolution.
+
+Parameters and products can be reordered with Move up / Move down. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
 
 ## Weights and relevance
 

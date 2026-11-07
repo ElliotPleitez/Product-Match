@@ -158,11 +158,14 @@ const view = $('#view');
 // Parameter value types. dec = decimal places of accuracy.
 const TYPES = {
   cm:      {label: 'cm (nearest 0.1)', unit: 'cm', dec: 1},
-  percent: {label: '% (whole percent)', unit: '%', dec: 0},
+  percent: {label: '% (25% increments)', unit: '%', dec: 0},
   boolean: {label: 'Y/N (Yes or No)'},
   number:  {label: 'Number (legacy)', legacy: true}
 };
 const BL = {yes: 'Yes', no: 'No', either: 'Either'};
+// Input / slider resolution per type.
+const RES = {cm: 0.1, percent: 25};
+const decOf = r => (String(r).split('.')[1] || '').length;
 let S = load();
 
 function blank(){ return {title: 'Product Match', parameters: [], products: [], inputs: {}, tab: null, selectedId: null, lastExport: null}; }
@@ -195,6 +198,12 @@ const P = id => S.parameters.find(x => x.id === id);
 const isBool = p => p.type === 'boolean';
 const prec = p => TYPES[p.type] && TYPES[p.type].dec != null ? TYPES[p.type].dec : null;
 function roundP(p, v){ if (v == null) return null; const d = prec(p); return d == null ? v : Number(v.toFixed(d)); }
+// Design inputs snap to the type's resolution (0.1 cm, 25%).
+function roundIn(p, v){
+  if (v == null) return null;
+  const r = RES[p.type];
+  return r ? Number((Math.round(v / r) * r).toFixed(decOf(r))) : roundP(p, v);
+}
 function num(v){
   if (v === null || v === undefined) return null;
   const t = String(v).trim().replace(/[,$%]/g, '');
@@ -255,13 +264,22 @@ function sliderSpec(p){
     if (lo == null) lo = e ? e[0] : 0;
     if (hi == null) hi = e ? e[1] : lo + 1;
   }
-  // One slider position per whole unit (0–1 = 2 positions, 1–3 = 3 positions).
-  // A span under 1 gives two positions: the two ends.
-  if (!(hi > lo)) hi = lo + 1;
-  // Steps are spread evenly so both ends are always reachable (2.5–7 = 6 positions).
-  const span = hi - lo, intervals = Math.max(1, Math.round(span)), step = span / intervals;
-  const dec = Number.isInteger(step) && Number.isInteger(lo) ? (d ?? 0) : 6;
-  return {lo, hi, step, dec, src};
+  // Slider moves at the type's resolution (0.1 cm, 25%), between the nearest
+  // resolution points inside the range. Other types: one position per whole unit.
+  const res = RES[p.type];
+  if (!(hi > lo)) hi = lo + (res || 1);
+  const rlo = lo, rhi = hi;
+  let step, dec;
+  if (res) {
+    dec = decOf(res);
+    const a = Math.ceil(lo / res - 1e-9) * res, b = Math.floor(hi / res + 1e-9) * res;
+    if (b > a) { lo = Number(a.toFixed(dec)); hi = Number(b.toFixed(dec)); step = res; }
+    else { step = hi - lo; dec = 6; }
+  } else {
+    const span = hi - lo, n = Math.max(1, Math.round(span)); step = span / n;
+    dec = Number.isInteger(step) && Number.isInteger(lo) ? 0 : 6;
+  }
+  return {lo, hi, step, dec, src, rlo, rhi};
 }
 function refSpan(p){
   if (p.min != null && p.max != null && p.max > p.min) return p.max - p.min;
@@ -293,7 +311,7 @@ function rank(){
     });
     return {pr, score: ws ? ss / ws : 0, within, n, fits};
   });
-  res.sort((a, b) => b.score - a.score || b.n - a.n || b.within - a.within || a.pr.name.localeCompare(b.pr.name));
+  res.sort((a, b) => b.score - a.score || b.n - a.n || b.within - a.within || S.products.indexOf(a.pr) - S.products.indexOf(b.pr));
   return {res, act};
 }
 
@@ -356,7 +374,7 @@ function renderMatch(){
   // Typed numeric value (rounded to the parameter's accuracy) -> slider
   view.querySelectorAll('input[data-in]').forEach(el => {
     el.addEventListener('input', () => {
-      const id = el.dataset.in, v = roundP(P(id), num(el.value));
+      const id = el.dataset.in, v = roundIn(P(id), num(el.value));
       syncSlider(id, v); setInput(id, v);
     });
     el.addEventListener('change', () => { const v = S.inputs[el.dataset.in]; el.value = v == null ? '' : v; });
@@ -397,10 +415,10 @@ function inputCard(p){
     </div>`;
   }
   const sp = sliderSpec(p), d = prec(p);
-  const pos = v == null ? sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step : Math.min(sp.hi, Math.max(sp.lo, v));
+  const pos = v == null ? Number((sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step).toFixed(sp.dec)) : Math.min(sp.hi, Math.max(sp.lo, v));
   return `<div class="card inp">
     <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">${esc(p.unit)}</span></div>
-    <input type="number" step="${d == null ? 'any' : Math.pow(10, -d)}" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
+    <input type="number" step="${RES[p.type] || 'any'}" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
     <div class="hrow"><span class="xsmall" data-hint="${p.id}"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>
     <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
     <div class="hrow xsmall muted"><span>${fmt(sp.lo)}</span><span>${fmt(sp.hi)}</span></div>
@@ -415,7 +433,7 @@ function updateMatch(){
     const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
     if (h) {
       h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
-      h.textContent = out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.lo)} – ${fmt(sp.hi)}`;
+      h.textContent = out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.rlo)} – ${fmt(sp.rhi)}`;
     }
   });
   const anyRel = res.some(r => r.n > 0);
@@ -503,9 +521,9 @@ function renderParams(){
           <div class="row"><b>${esc(p.name)}</b><span class="muted small">${esc(p.unit)}</span><span class="spacer"></span><span class="pill">Weight: ${p.weight}</span></div>
           <div class="small muted">${esc(TYPES[p.type].label)}${isBool(p) ? '' : ` · Allowable: ${fmt(p.min)} – ${fmt(p.max)}`}</div>
           ${p.details ? `<div class="small muted clamp">${esc(p.details)}</div>` : ''}
-          <div class="item-actions"><button data-up="${p.id}" ${i ? '' : 'disabled'}>Move up</button><button data-down="${p.id}" ${i < S.parameters.length - 1 ? '' : 'disabled'}>Move down</button><button class="danger" data-del="${p.id}">Delete</button></div>
+          <div class="item-actions"><button data-up="${p.id}" ${i ? '' : 'disabled'}>▲ Move up</button><button data-down="${p.id}" ${i < S.parameters.length - 1 ? '' : 'disabled'}>▼ Move down</button><button class="danger" data-del="${p.id}">Delete</button></div>
         </div>`).join('') : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`}
-      <p class="xsmall muted" style="margin:4px">Weight (0–10) is the default for every product. On the Products tab each parameter can be marked not relevant (weight 0) or given its own weight for that product.</p>
+      <p class="xsmall muted" style="margin:4px">The order here sets the order of inputs on the Match tab and fields in the product editor. Weight (0–10) is the default for every product. On the Products tab each parameter can be marked not relevant (weight 0) or given its own weight for that product.</p>
     </section>
     ${S.parameters.length ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : ''}`;
   $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; };
@@ -572,10 +590,10 @@ function editParam(id){
         if (t.unit) { u.value = t.unit; u.disabled = true; } else { if (u.disabled) u.value = ''; u.disabled = false; }
         const step = t.dec != null ? String(Math.pow(10, -t.dec)) : 'any';
         $('#fMin').step = step; $('#fMax').step = step;
-        $('#rangeNote').textContent = type === 'percent' ? 'Values are whole percent. Leave blank for 0 – 100.'
+        $('#rangeNote').textContent = type === 'percent' ? 'Design inputs are set in 25% increments. Leave blank for 0 – 100.'
           : type === 'cm' ? 'Values are in cm to the nearest 0.1.'
           : 'Inputs outside this range are flagged. The range also sets the slider span.';
-        if (type !== 'boolean') $('#rangeNote').textContent += ' The slider moves in steps of 1 across this range.';
+        if (RES[type]) $('#rangeNote').textContent += type === 'cm' ? ' The slider moves in 0.1 cm steps.' : ' The slider moves in 25% steps.';
       };
       $('#fType').onchange = apply; apply();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
@@ -590,7 +608,7 @@ function renderProducts(){
     return;
   }
   view.innerHTML = `<section><div class="sec-h"><h2>Products</h2><button class="btn primary" id="addPr">+ Add</button></div>
-    ${S.products.length ? S.products.map(pr => {
+    ${S.products.length ? S.products.map((pr, pi) => {
       const relP = S.parameters.filter(p => wOf(pr, p) > 0);
       const done = relP.filter(p => isBool(p) ? pr.flags[p.id] : rng(pr, p)).length;
       const na = S.parameters.length - relP.length;
@@ -601,7 +619,7 @@ function renderProducts(){
           const rel = relOf(pr, p), on = rel.on && rel.w > 0;
           let val; if (!on) val = 'N/A'; else if (isBool(p)) val = pr.flags[p.id] ? BL[pr.flags[p.id]] : '—'; else { const r = rng(pr, p); val = r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'; }
           return `<div class="chip ${on ? '' : 'na'}"><span class="muted">${esc(p.name)}${on ? ' · W' + rel.w : ''}</span><b>${val}</b></div>`; }).join('')}</div>
-        <div class="item-actions"><button data-dup="${pr.id}">Duplicate</button><button class="danger" data-del="${pr.id}">Delete</button></div>
+        <div class="item-actions"><button data-up="${pr.id}" ${pi ? '' : 'disabled'}>▲ Move up</button><button data-down="${pr.id}" ${pi < S.products.length - 1 ? '' : 'disabled'}>▼ Move down</button><button data-dup="${pr.id}">Duplicate</button><button class="danger" data-del="${pr.id}">Delete</button></div>
       </div>`; }).join('') : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`}
     </section>
     ${configured() ? `<button class="btn primary block" data-go="match">Go to Match →</button>` : ''}`;
@@ -610,8 +628,9 @@ function renderProducts(){
     const b = e.target.closest('button');
     if (b) {
       e.stopPropagation();
-      const id = b.dataset.dup || b.dataset.del, i = S.products.findIndex(p => p.id === id);
-      if (b.dataset.del) { if (!confirm(`Delete "${S.products[i].name}"?`)) return; S.products.splice(i, 1); }
+      const id = b.dataset.up || b.dataset.down || b.dataset.dup || b.dataset.del, i = S.products.findIndex(p => p.id === id);
+      if (b.dataset.up || b.dataset.down) { const j = b.dataset.up ? i - 1 : i + 1; [S.products[i], S.products[j]] = [S.products[j], S.products[i]]; }
+      else if (b.dataset.del) { if (!confirm(`Delete "${S.products[i].name}"?`)) return; S.products.splice(i, 1); }
       else { const c = JSON.parse(JSON.stringify(S.products[i])); c.id = uid('r'); c.name += ' (copy)'; S.products.splice(i + 1, 0, c); }
       save(); setTab('products'); return;
     }
