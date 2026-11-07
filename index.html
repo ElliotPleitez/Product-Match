@@ -36,9 +36,10 @@ textarea{min-height:80px;resize:vertical}
 input:focus,textarea:focus{outline:2px solid var(--accent);border-color:transparent}
 input[type=range]{padding:0;border:0;background:none;accent-color:var(--accent);height:30px}
 .inp input[type=number]{margin:8px 0 4px;font-size:20px;font-weight:600}
-.wrow{display:flex;align-items:center;gap:10px;margin-top:8px}
-.wrow input{flex:1}
-.wval{min-width:22px;text-align:right}
+.hrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.wt{font-weight:600;color:var(--muted);white-space:nowrap;text-align:right}
+.vslider{width:100%;margin-top:8px}
+.vslider.unset{opacity:.45}
 .btn{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--accent);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.danger{color:var(--bad)}
@@ -282,29 +283,51 @@ function renderMatch(){
     <section><h2>Result</h2><div id="result"></div></section>
     <section><h2 id="listTitle">All Products</h2><div id="list"></div>
       <div class="legend"><span style="--c:var(--good)">Within range</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far</span><span style="--c:var(--gray)">Excluded / no data</span></div></section>`;
+  // Typed value -> slider position
   view.querySelectorAll('[data-in]').forEach(el => el.addEventListener('input', () => {
-    const v = num(el.value);
-    if (v == null) delete S.inputs[el.dataset.in]; else S.inputs[el.dataset.in] = v;
+    const id = el.dataset.in, v = num(el.value), s = view.querySelector(`[data-s="${id}"]`);
+    if (v == null) delete S.inputs[id]; else S.inputs[id] = v;
+    if (s) {
+      s.classList.toggle('unset', v == null);
+      if (v != null) s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
+    }
     S.selectedId = null; save(); updateMatch();
   }));
-  view.querySelectorAll('[data-w]').forEach(el => el.addEventListener('input', () => {
-    const p = S.parameters.find(x => x.id === el.dataset.w);
-    p.weight = Number(el.value);
-    view.querySelector(`[data-wv="${p.id}"]`).textContent = p.weight;
-    save(); updateMatch();
+  // Slider -> input value
+  view.querySelectorAll('[data-s]').forEach(el => el.addEventListener('input', () => {
+    const id = el.dataset.s, p = S.parameters.find(x => x.id === id), sp = sliderSpec(p);
+    const v = Number(Number(el.value).toFixed(sp.dec));
+    S.inputs[id] = v; el.classList.remove('unset');
+    view.querySelector(`[data-in="${id}"]`).value = v;
+    S.selectedId = null; save(); updateMatch();
   }));
   $('#clearIn').onclick = () => { S.inputs = {}; S.selectedId = null; save(); renderMatch(); };
   updateMatch();
 }
+// Slider travel: the parameter's allowable range if entered, otherwise the span of all products.
+function sliderSpec(p){
+  let lo, hi;
+  if (p.min != null && p.max != null && p.max > p.min) { lo = p.min; hi = p.max; }
+  else {
+    const e = extent(p); lo = e[0]; hi = e[1];
+    if (p.min != null) lo = p.min;
+    if (p.max != null) hi = p.max;
+  }
+  if (!(hi > lo)) hi = lo + Math.max(Math.abs(lo) * 0.1, 1);
+  const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 200)));
+  const dec = Math.max(0, -Math.floor(Math.log10(step)));
+  return {lo, hi, step, dec};
+}
 function inputCard(p){
-  const v = S.inputs[p.id];
+  const v = S.inputs[p.id], sp = sliderSpec(p);
+  const pos = v == null ? (sp.lo + sp.hi) / 2 : Math.min(sp.hi, Math.max(sp.lo, v));
   return `<div class="card inp">
     <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">${esc(p.unit)}</span></div>
     <input type="number" step="any" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
-    <div class="xsmall" data-hint="${p.id}"></div>
+    <div class="hrow"><span class="xsmall" data-hint="${p.id}"></span><span class="xsmall wt" data-wt="${p.id}"></span></div>
+    <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
+    <div class="hrow xsmall muted"><span>${fmt(sp.lo)}</span><span>${fmt(sp.hi)}</span></div>
     ${p.details ? `<div class="xsmall muted clamp" style="margin-top:3px">${esc(p.details)}</div>` : ''}
-    <div class="wrow"><span class="small muted">Weight</span><input type="range" min="0" max="10" step="1" data-w="${p.id}" value="${p.weight}" aria-label="Weight for ${esc(p.name)}"><b class="wval" data-wv="${p.id}">${p.weight}</b></div>
-    <div class="xsmall muted" data-inf="${p.id}"></div>
   </div>`;
 }
 function updateMatch(){
@@ -312,7 +335,7 @@ function updateMatch(){
   const totalW = weighted.reduce((a, p) => a + p.weight, 0);
   // hints and weight influence
   S.parameters.forEach(p => {
-    const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), inf = view.querySelector(`[data-inf="${p.id}"]`);
+    const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), wt = view.querySelector(`[data-wt="${p.id}"]`);
     const hasRange = p.min != null || p.max != null;
     const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
     if (h) {
@@ -322,9 +345,9 @@ function updateMatch(){
         : hasRange ? `Allowable: ${fmt(p.min)} – ${fmt(p.max)}`
         : e ? `Products cover ${fmt(e[0])} – ${fmt(e[1])}` : 'No product data';
     }
-    if (inf) inf.textContent = v == null ? 'Not included (no value entered)'
-      : !(p.weight > 0) ? 'Excluded from score (weight 0)'
-      : `${Math.round(p.weight / totalW * 100)}% of overall match score`;
+    if (wt) wt.textContent = !(p.weight > 0) ? 'Weight 0 · excluded'
+      : v == null ? `Weight ${p.weight}`
+      : `Weight ${p.weight} · ${Math.round(p.weight / totalW * 100)}%`;
   });
   // center result
   const box = $('#result');
@@ -403,7 +426,7 @@ function renderParams(){
           ${p.details ? `<div class="small muted clamp">${esc(p.details)}</div>` : ''}
           <div class="item-actions"><button data-up="${p.id}" ${i ? '' : 'disabled'}>Move up</button><button data-down="${p.id}" ${i < S.parameters.length - 1 ? '' : 'disabled'}>Move down</button><button class="danger" data-del="${p.id}">Delete</button></div>
         </div>`).join('') : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, units, allowable range, weight and description.</div>`}
-      <p class="xsmall muted" style="margin:4px">Weight (0–10) sets each parameter's share of the overall match score. 0 excludes the parameter. Weights can also be adjusted on the Match screen.</p>
+      <p class="xsmall muted" style="margin:4px">Weight (0–10) sets each parameter's share of the overall match score. 0 excludes the parameter. The Match screen shows each weight and its current share of the score.</p>
     </section>
     ${S.parameters.length ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : ''}`;
   $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; };
