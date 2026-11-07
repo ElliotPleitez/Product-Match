@@ -23,10 +23,9 @@ Public repository note: the app **code** is publicly viewable. Your parameters, 
 
 ## Using the app
 
-- **Parameters tab:** name, units, allowable range, weight (0–10) and description for each parameter.
-- **Products tab:** each product's lower and upper value for every parameter.
-- **Match tab:** inputs and weight sliders at the top, best match in the center, all products ranked below.
-- **Data tab:** selector title, CSV import/export (share sheet ▸ Save to Files, iCloud Drive or OneDrive), consistency review, sample data.
+- The app opens on the **Match** screen with your last inputs. Each input card shows the weight (top right), a slider, the current value, the allowable range and default, the units, and **⋯** to type a value. Y/N parameters use Yes / No radio buttons (tap again to clear). **Reset to defaults** sets every input to its parameter default.
+- **Settings** (top right) holds **Parameters**, **Products** and **Data**. One section is open at a time; tap a heading to open or close it. **Done** returns to Match.
+- Chip rows on product cards scroll together, so each parameter stays in one column.
 
 All changes, inputs and weights are saved automatically on the device.
 

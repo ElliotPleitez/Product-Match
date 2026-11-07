@@ -21,7 +21,7 @@ body.locked{overflow:hidden}
 header.top{background:linear-gradient(125deg,#0f2f5e,#1f5fbf 60%,#0ea5a4);color:#fff;padding:calc(env(safe-area-inset-top) + 14px) 18px 18px}
 header.top h1{margin:0;font-size:22px;font-weight:700}
 header.top .sub{opacity:.85;font-size:13px;margin-top:2px}
-main{max-width:980px;margin:0 auto;padding:14px 14px calc(env(safe-area-inset-bottom) + 92px)}
+main{max-width:980px;margin:0 auto;padding:14px 14px calc(env(safe-area-inset-bottom) + 40px)}
 section{margin-bottom:18px}
 h2{font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:6px 4px 8px;font-weight:600}
 .sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -53,6 +53,45 @@ select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var
 .pfield .offnote{display:none;margin-top:6px}
 .pfield.off .offnote{display:block}
 .chip.na b{color:var(--gray)}
+/* header Settings button */
+.hwrap{display:flex;align-items:center;gap:12px;max-width:980px;margin:0 auto}
+.htext{flex:1;min-width:0}
+.gear{flex:none;min-width:44px;height:44px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font:inherit;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.gear svg{width:24px;height:24px}
+/* compact Match cards */
+.grid{gap:8px}
+.inp{padding:10px 12px}
+.inp .top{display:flex;align-items:baseline;gap:8px}
+.inp .top b{font-size:15px}
+.inp .vslider{margin:4px 0 0}
+.ends{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted);margin-top:-2px}
+.ends .val{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.ends .val.warn-text{color:var(--warn)}
+.bot{display:flex;align-items:center;gap:8px;margin-top:4px;min-height:26px}
+.dots{flex:none;border:1px solid var(--line);background:var(--soft);border-radius:8px;width:36px;height:26px;font-size:15px;line-height:1;color:var(--ink);cursor:pointer;padding:0}
+.manual{display:none;gap:8px;margin-top:8px}
+.manual.open{display:flex}
+.manual input{font-size:17px;padding:8px 10px}
+.manual .btn{flex:none}
+.yn{display:flex;gap:8px;margin:8px 0 2px}
+.rb{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font-weight:600;cursor:pointer}
+.rb input{width:20px;height:20px;margin:0;padding:0;accent-color:var(--accent)}
+.rb:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--card))}
+/* chips scroll together as columns */
+.chips.sync .chip{width:112px;flex:none;overflow:hidden}
+.chips.sync .chip span,.chips.sync .chip b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Settings accordion */
+.acc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 12px;margin-bottom:10px}
+.acc-h{min-height:48px;cursor:pointer}
+.acc-h h2{margin:0;font-size:15px;letter-spacing:.3px;color:var(--ink);display:flex;align-items:center;gap:6px}
+.acc:not(.open) .caret{transform:rotate(-90deg)}
+.acc-body{padding:4px 0 10px}
+.acc-body:empty{display:none}
+.subh{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:14px 4px 6px;font-weight:600}
+details.en summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);margin:0 2px 6px;list-style:none}
+details.en summary::-webkit-details-marker{display:none}
+details.en summary::before{content:"▾";display:inline-block;width:14px;transition:transform .2s}
+details.en:not([open]) summary::before{transform:rotate(-90deg)}
 /* uniform list cards: ▲▼ left, content middle, Duplicate / Delete right */
 .lcard{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:stretch}
 .mv,.acts{display:flex;flex-direction:column;justify-content:space-between;gap:8px}
@@ -149,23 +188,19 @@ nav.tabs button.on{color:var(--accent)}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--card)}
 .sheet-head b{font-size:16px}
 .sheet-body{flex:1;overflow-y:auto;padding:16px 14px calc(env(safe-area-inset-bottom) + 30px);-webkit-overflow-scrolling:touch}
-#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translateX(-50%);background:#141c28;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20;max-width:90%;text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#141c28;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20;max-width:90%;text-align:center}
 #toast.show{opacity:1}
 </style>
 </head>
 <body>
 <header class="top">
-  <h1 id="title">Product Match</h1>
-  <div class="sub" id="subtitle"></div>
+  <div class="hwrap">
+    <div class="htext"><h1 id="title">Product Match</h1><div class="sub" id="subtitle"></div></div>
+    <button id="gear" class="gear" aria-label="Settings"></button>
+  </div>
 </header>
 <main id="view"></main>
 
-<nav class="tabs">
-  <button data-tab="match"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Match</button>
-  <button data-tab="params"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Parameters</button>
-  <button data-tab="products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>Products</button>
-  <button data-tab="data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Data</button>
-</nav>
 
 <div id="sheet" class="sheet hidden">
   <div class="sheet-card">
@@ -397,15 +432,18 @@ function issues(){
 }
 
 /* ======================= NAVIGATION & EFFECTS ======================= */
-const RENDER = () => ({match: renderMatch, params: renderParams, products: renderProducts, data: renderData})[S.tab];
+const RENDER = () => S.tab === 'settings' ? renderSettings : renderMatch;
 const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 function updateHeader(){
-  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('#title').textContent = S.title || 'Product Match';
   document.title = S.title || 'Product Match';
-  $('#subtitle').textContent = `${S.parameters.length} parameters · ${S.products.length} products`;
+  $('#subtitle').textContent = S.tab === 'settings' ? 'Settings' : `${S.parameters.length} parameters · ${S.products.length} products`;
+  const g = $('#gear');
+  g.innerHTML = S.tab === 'settings' ? 'Done' : GEAR;
+  g.setAttribute('aria-label', S.tab === 'settings' ? 'Close settings' : 'Settings');
 }
-// Switching tabs: start at the top with a fade-in.
+// Views: 'match' (default) and 'settings'. Switching starts at the top with a fade-in.
 function setTab(tab){
   S.tab = tab; save(); updateHeader();
   window.scrollTo(0, 0);
@@ -413,6 +451,9 @@ function setTab(tab){
   RENDER()();
   clearTimeout(view._a); view._a = setTimeout(() => view.classList.remove('anim'), 450);
 }
+// Open Settings with one section expanded (or all collapsed with null).
+function openSettings(sec){ S.sec = sec || null; setTab('settings'); }
+function go(dest){ if (dest === 'match') setTab('match'); else openSettings(dest); }
 // Positions of list cards, used to keep the screen still and animate reordering.
 function snapshot(){ const m = {}; view.querySelectorAll('[data-card]').forEach(el => m[el.dataset.card] = el.getBoundingClientRect().top); return m; }
 // Re-render the current tab in place: no jump to the top. The card `keepId` stays where it was on screen.
@@ -465,9 +506,42 @@ document.addEventListener('click', e => {
     S.collapsed = S.collapsed || {}; S.collapsed[c.dataset.collapse] = closing; save();
     slide(sec, closing); return;
   }
-  const t = e.target.closest('[data-tab],[data-go]');
-  if (t) setTab(t.dataset.tab || t.dataset.go);
+  const acc = e.target.closest('[data-acc]');
+  if (acc && !e.target.closest('button')) {   // accordion: one section open at a time
+    S.sec = S.sec === acc.dataset.acc ? null : acc.dataset.acc; save();
+    renderSettings(); window.scrollTo({top: 0, behavior: reduceMotion() ? 'auto' : 'smooth'}); return;
+  }
+  const t = e.target.closest('[data-go]');
+  if (t) go(t.dataset.go);
 });
+$('#gear').onclick = () => S.tab === 'settings' ? setTab('match') : openSettings(null);
+// Chip rows scroll together so each parameter stays in one column.
+const chipX = {};   // scroll position per list
+function syncChips(root, key){
+  if (!root) return;
+  key = key || root.id;
+  const rows = [...root.querySelectorAll('.chips.sync')];
+  rows.forEach(r => {
+    r.scrollLeft = chipX[key] || 0;
+    r.addEventListener('scroll', () => {
+      if (r._lock) return;
+      const x = chipX[key] = r.scrollLeft;
+      rows.forEach(o => { if (o !== r && o.scrollLeft !== x) { o._lock = true; o.scrollLeft = x; requestAnimationFrame(() => o._lock = false); } });
+    }, {passive: true});
+  });
+}
+function renderSettings(){
+  const secs = [['params', 'Parameters', S.parameters.length], ['products', 'Products', S.products.length], ['data', 'Data', null]];
+  view.innerHTML = secs.map(([k, t, c]) => `<section class="acc ${S.sec === k ? 'open' : ''}" data-acc-sec="${k}">
+      <div class="sec-h acc-h" data-acc="${k}"><h2><span class="caret">▾</span>${t}${c != null ? ` <span class="pill">${c}</span>` : ''}</h2><span id="act-${k}"></span></div>
+      <div class="acc-body" id="body-${k}"></div></section>`).join('');
+  if (S.sec) {
+    const box = $('#body-' + S.sec);
+    ({params: renderParams, products: renderProducts, data: renderData})[S.sec](box, $('#act-' + S.sec));
+    syncChips(box);
+  }
+  updateHeader();
+}
 // Shared list card used by the Parameters and Products tabs.
 function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = ''){
   return `<div class="card lcard ${cls}" data-card="${id}">
@@ -476,7 +550,7 @@ function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = ''){
       <b class="ltitle">${esc(title)}</b>
       ${meta ? `<div class="xsmall ${metaWarn ? 'warn-text' : 'muted'}">${meta}</div>` : ''}
       ${desc ? `<div class="small muted clamp">${esc(desc)}</div>` : ''}
-      <div class="chips">${chips}</div>
+      <div class="chips sync">${chips}</div>
     </div>
     <div class="acts"><button data-act="dup" data-id="${id}">Duplicate</button><button class="danger" data-act="del" data-id="${id}">Delete</button></div>
   </div>`;
@@ -487,7 +561,7 @@ const chip = (label, val, cls = '') => `<div class="chip ${cls}"><span class="mu
 function renderMatch(){
   if (!configured()) {
     view.innerHTML = `<div class="card empty"><div class="big">🎯</div><p><b>Setup required</b></p>
-      <p class="muted small">Define parameters and enter products before matching, or import a CSV settings file.</p>
+      <p class="muted small">Open Settings (top right) to define parameters and enter products, or import a CSV settings file.</p>
       <button class="btn primary" data-go="${S.parameters.length ? 'products' : 'params'}">${S.parameters.length ? 'Enter products' : 'Define parameters'}</button>
       <button class="btn" data-go="data">Import CSV</button></div>`;
     return;
@@ -497,17 +571,26 @@ function renderMatch(){
     section('m-result', 'Result', '', '<div id="result"></div>') +
     section('m-list', 'All Products', '', `<div id="list"></div>
       <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div>`, 'listTitle');
-  // Typed numeric value (rounded to the parameter's accuracy) -> slider
+  // Manual entry (opened with ⋯): rounded to the parameter's resolution -> slider
   view.querySelectorAll('input[data-in]').forEach(el => {
     el.addEventListener('input', () => {
       const id = el.dataset.in, v = roundIn(P(id), num(el.value));
       syncSlider(id, v); setInput(id, v);
     });
     el.addEventListener('change', () => { const v = S.inputs[el.dataset.in]; el.value = v == null ? '' : v; });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
   });
-  // Yes / No
-  view.querySelectorAll('select[data-in]').forEach(el => el.addEventListener('change', () => setInput(el.dataset.in, el.value || null)));
-  // Slider -> value (snaps to the parameter's increment)
+  view.querySelectorAll('[data-dots]').forEach(b => b.onclick = () => {
+    const m = view.querySelector(`[data-man="${b.dataset.dots}"]`), open = m.classList.toggle('open');
+    if (open) m.querySelector('input').focus();
+  });
+  view.querySelectorAll('[data-done]').forEach(b => b.onclick = () => view.querySelector(`[data-man="${b.dataset.done}"]`).classList.remove('open'));
+  // Yes / No radio buttons (tap the selected one again to clear it)
+  view.querySelectorAll('[data-yn]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.yn;
+    if (S.inputs[id] === el.value) { el.checked = false; setInput(id, null); } else setInput(id, el.value);
+  }));
+  // Slider -> value (moves at the parameter's resolution)
   view.querySelectorAll('[data-s]').forEach(el => el.addEventListener('input', () => {
     const id = el.dataset.s, sp = sliderSpec(P(id));
     const v = Number(Number(el.value).toFixed(sp.dec));
@@ -528,32 +611,27 @@ function syncSlider(id, v){
   s.classList.toggle('unset', v == null);
   if (v != null) s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
 }
+// Compact card: name + weight on top; slider; value; range/default + units + ⋯ at the bottom.
 function inputCard(p){
   const v = S.inputs[p.id];
-  const details = p.details ? `<div class="xsmall muted clamp" style="margin-top:3px">${esc(p.details)}</div>` : '';
+  const top = `<div class="top"><b>${esc(p.name)}</b><span class="spacer"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>`;
   if (isBool(p)) {
-    return `<div class="card inp">
-      <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">Yes / No</span></div>
-      <select data-in="${p.id}" aria-label="${esc(p.name)}">
-        <option value="">— Select —</option>
-        <option value="yes" ${v === 'yes' ? 'selected' : ''}>Yes</option>
-        <option value="no" ${v === 'no' ? 'selected' : ''}>No</option>
-      </select>
-      <div class="hrow"><span class="xsmall muted">Select Yes or No</span><span class="xsmall wt">Weight: ${p.weight}</span></div>
-      <div class="xsmall muted">Default: ${p.def ? BL[p.def] : 'none'}</div>
-      ${details}
+    return `<div class="card inp">${top}
+      <div class="yn" role="radiogroup" aria-label="${esc(p.name)}">
+        <label class="rb"><input type="radio" name="yn-${p.id}" value="yes" data-yn="${p.id}" ${v === 'yes' ? 'checked' : ''}>Yes</label>
+        <label class="rb"><input type="radio" name="yn-${p.id}" value="no" data-yn="${p.id}" ${v === 'no' ? 'checked' : ''}>No</label>
+      </div>
+      <div class="bot"><span class="xsmall muted">Default: ${p.def ? BL[p.def] : 'none'}</span><span class="spacer"></span><span class="xsmall muted">Y/N</span></div>
     </div>`;
   }
-  const sp = sliderSpec(p), d = prec(p);
+  const sp = sliderSpec(p);
   const pos = v == null ? Number((sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step).toFixed(sp.dec)) : Math.min(sp.hi, Math.max(sp.lo, v));
-  return `<div class="card inp">
-    <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">${esc(p.unit)}</span></div>
-    <input type="number" step="${RES[p.type] || 'any'}" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
-    <div class="hrow"><span class="xsmall" data-hint="${p.id}"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>
-    <div class="xsmall muted">Default: ${p.def == null ? 'none' : fmt(p.def) + (p.unit ? ' ' + esc(p.unit) : '')}</div>
+  return `<div class="card inp">${top}
     <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
-    <div class="hrow xsmall muted"><span>${fmt(sp.lo)}</span><span>${fmt(sp.hi)}</span></div>
-    ${details}
+    <div class="ends"><span>${fmt(sp.lo)}</span><span class="val" data-val="${p.id}">${v == null ? '—' : fmt(v)}</span><span>${fmt(sp.hi)}</span></div>
+    <div class="bot"><span class="xsmall" data-hint="${p.id}"></span><span class="spacer"></span><span class="xsmall muted">${esc(p.unit)}</span>
+      <button class="dots" data-dots="${p.id}" aria-label="Enter ${esc(p.name)} manually">⋯</button></div>
+    <div class="manual" data-man="${p.id}"><input type="number" step="${RES[p.type] || 'any'}" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>
   </div>`;
 }
 function updateMatch(){
@@ -564,8 +642,11 @@ function updateMatch(){
     const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
     if (h) {
       h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
-      h.textContent = out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.rlo)} – ${fmt(sp.rhi)}`;
+      h.textContent = (out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.rlo)} – ${fmt(sp.rhi)}`)
+        + ` · Default: ${p.def == null ? 'none' : fmt(p.def)}`;
     }
+    const ve = view.querySelector(`[data-val="${p.id}"]`);
+    if (ve) { ve.textContent = v == null ? '—' : fmt(v); ve.classList.toggle('warn-text', out); }
   });
   const anyRel = res.some(r => r.n > 0);
   const box = $('#result');
@@ -611,8 +692,9 @@ function updateMatch(){
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
         <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted clamp">${esc(r.pr.notes)}</div>` : ''}</div>
         ${scored ? `<div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div>` : ''}</div>
-      <div class="chips">${chips}</div></div>`;
+      <div class="chips sync">${chips}</div></div>`;
   }).join('');
+  syncChips($('#list'));
   $('#list').querySelectorAll('[data-row]').forEach(el => el.onclick = () => {
     if (!scored) return;
     S.selectedId = el.dataset.row; save(); updateMatch();
@@ -643,7 +725,7 @@ function fitRow(p, f){
 }
 
 /* ======================= PARAMETERS TAB ======================= */
-function renderParams(){
+function renderParams(box, act){
   const n = S.parameters.length;
   const cards = n ? S.parameters.map((p, i) => listCard(p.id, i, n, p.name, '', false, p.details,
       chip('Type', esc(TYPES[p.type].label.split(' ')[0])) +
@@ -651,12 +733,13 @@ function renderParams(){
       chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : fmt(p.def)) +
       chip('Weight', p.weight))).join('')
     : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
-  view.innerHTML = section('params', 'Parameters', '<button class="btn primary" id="addP">+ Add</button>',
+  act.innerHTML = '<button class="btn primary" id="addP">+ Add</button>';
+  box.innerHTML = (
       `${n ? '<p class="listnote">Tap a card to edit. ▲ ▼ reorder; the order is used on the Match tab and in the product editor.</p>' : ''}${cards}
        <p class="listnote">Weight (0–10) is the default for every product. On the Products tab each parameter can be marked not relevant (weight 0) or given its own weight for that product.</p>`) +
     (n ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : '');
   $('#addP').onclick = () => editParam(null);
-  view.onclick = e => {
+  box.onclick = e => {
     const t = e.target.closest('[data-act]'); if (!t) return;
     const id = t.dataset.id, i = S.parameters.findIndex(p => p.id === id), act = t.dataset.act;
     if (act === 'edit') return editParam(id);
@@ -687,12 +770,12 @@ function editParam(id){
   const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, def: null, weight: 5, details: ''};
   const enabledNow = pr => { const r = relOf(pr, p); return !!id && r.on && r.w > 0; };
   const enableList = S.products.length ? `
-    <div class="field"><label>Enable for products</label>
+    <details class="field en" ${id ? '' : 'open'}><summary>Enable for products (<span id="enCount"></span>)</summary>
       <div class="card" style="padding:6px 12px;margin:0">
         <div class="row" style="justify-content:space-between;padding:4px 0"><button type="button" class="link" id="enAll">Select all</button><button type="button" class="link" id="enNone">Select none</button></div>
         ${S.products.map(pr => `<label class="chk enrow"><input type="checkbox" data-en="${pr.id}" ${enabledNow(pr) ? 'checked' : ''}><span>${esc(pr.name)}</span></label>`).join('')}
       </div>
-      <div class="xsmall muted" style="margin:5px 2px">${id ? 'Checked products use this parameter.' : 'Select the products this new parameter applies to.'} Their values are entered on the Products tab; products missing values are highlighted until complete.</div></div>` : '';
+      <div class="xsmall muted" style="margin:5px 2px">${id ? 'Checked products use this parameter.' : 'Select the products this new parameter applies to.'} Their values are entered on the Products tab; products missing values are highlighted until complete.</div></details>` : '';
   openSheet(id ? 'Edit Parameter' : 'New Parameter', `
     <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
     <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).filter(([k, t]) => !t.legacy || p.type === k).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
@@ -776,17 +859,20 @@ function editParam(id){
       $('#fType').onchange = apply; apply();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
       if ($('#enAll')) {
-        $('#enAll').onclick = () => document.querySelectorAll('[data-en]').forEach(c => c.checked = true);
-        $('#enNone').onclick = () => document.querySelectorAll('[data-en]').forEach(c => c.checked = false);
+        const count = () => { const all = [...document.querySelectorAll('[data-en]')]; $('#enCount').textContent = `${all.filter(c => c.checked).length} of ${all.length}`; };
+        $('#enAll').onclick = () => { document.querySelectorAll('[data-en]').forEach(c => c.checked = true); count(); };
+        $('#enNone').onclick = () => { document.querySelectorAll('[data-en]').forEach(c => c.checked = false); count(); };
+        document.querySelectorAll('[data-en]').forEach(c => c.onchange = count);
+        count();
       }
       if (!id) $('#fName').focus();
     });
 }
 
 /* ======================= PRODUCTS TAB ======================= */
-function renderProducts(){
+function renderProducts(box, act){
   if (!S.parameters.length) {
-    view.innerHTML = section('products', 'Products', '', `<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as allowable values for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`);
+    box.innerHTML = (`<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as allowable values for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`);
     return;
   }
   const n = S.products.length;
@@ -801,11 +887,12 @@ function renderProducts(){
       return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '');
     }).join('')
     : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`;
-  view.innerHTML = section('products', 'Products', '<button class="btn primary" id="addPr">+ Add</button>',
+  act.innerHTML = '<button class="btn primary" id="addPr">+ Add</button>';
+  box.innerHTML = (
       `${n ? '<p class="listnote">Tap a card to edit. ▲ ▼ reorder; the order is used when products are listed and to rank ties. Highlighted products are missing values for enabled parameters.</p>' : ''}${cards}`) +
     (configured() ? `<button class="btn primary block" data-go="match">Go to Match →</button>` : '');
   $('#addPr').onclick = () => editProduct(null);
-  view.onclick = e => {
+  box.onclick = e => {
     const t = e.target.closest('[data-act]'); if (!t) return;
     const id = t.dataset.id, i = S.products.findIndex(p => p.id === id), act = t.dataset.act;
     if (act === 'edit') return editProduct(id);
@@ -905,36 +992,36 @@ function editProduct(id){
 }
 
 /* ======================= DATA TAB ======================= */
-function renderData(){
+function renderData(box){
   const list = issues();
-  view.innerHTML =
-    section('d-settings', 'Settings', '', `<div class="card"><div class="field" style="margin:0"><label>Selector title</label><input id="titleIn" value="${esc(S.title)}" placeholder="Title"></div></div>`) +
-    section('d-csv', 'Settings File (CSV)', '', `<div class="card">
-      <p class="small muted" style="margin-top:0">Import or export all parameters, types, weights, relevance and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
+  box.innerHTML = `
+    <div class="subh">Settings</div><div class="card"><div class="field" style="margin:0"><label>Selector title</label><input id="titleIn" value="${esc(S.title)}" placeholder="Title"></div></div>
+    <div class="subh">Settings File (CSV)</div><div class="card">
+      <p class="small muted" style="margin-top:0">Import or export all parameters, types, defaults, weights, relevance and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
       <div class="pair"><button class="btn" id="impBtn" style="flex:1">Import CSV</button><button class="btn primary" id="expBtn" style="flex:1" ${S.parameters.length ? '' : 'disabled'}>Export CSV</button></div>
-      <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p></div>`) +
-    section('d-review', 'Review', '', `<div class="card">
+      <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p></div>
+    <div class="subh">Review</div><div class="card">
       ${list.length ? `<div class="small warn-text" style="margin-bottom:6px"><b>${list.length} item(s) need attention</b></div>${list.map(t => `<div class="issue">${esc(t)}</div>`).join('')}`
         : `<div class="small c-within">No inconsistencies found.</div>`}
-      ${nonConforming() ? `<button class="btn primary block" id="fixBtn" style="margin-top:10px">Apply parameter resolution and range to products (${nonConforming()})</button>` : ''}</div>`) +
-    section('d-other', 'Other', '', `<div class="card">
+      ${nonConforming() ? `<button class="btn primary block" id="fixBtn" style="margin-top:10px">Apply parameter resolution and range to products (${nonConforming()})</button>` : ''}</div>
+    <div class="subh">Other</div><div class="card">
       <button class="btn block" id="sampleBtn">Load sample data</button>
       <button class="btn danger block" id="resetBtn">Erase all data</button>
-      <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p></div>`);
-  $('#titleIn').oninput = e => { S.title = e.target.value; save(); updateHeader(); };
+      <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p></div>`;
+  $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; document.title = S.title || 'Product Match'; };
   $('#impBtn').onclick = () => $('#fileIn').click();
   if ($('#fixBtn')) $('#fixBtn').onclick = () => {
     if (!confirm('Round product values to each parameter\'s resolution and limit them to its allowable range? Export a CSV first if you want to keep the current values.')) return;
-    conformAll(); save(); renderData(); toast('Product values updated');
+    conformAll(); save(); renderSettings(); toast('Product values updated');
   };
   $('#expBtn').onclick = exportCSV;
   $('#sampleBtn').onclick = () => {
     if ((S.parameters.length || S.products.length) && !confirm('Replace current parameters and products with sample data?')) return;
-    const keepTab = S.tab; S = sample(); S.tab = keepTab; save(); setTab('data'); toast('Sample data loaded');
+    S = sample(); save(); openSettings('data'); toast('Sample data loaded');
   };
   $('#resetBtn').onclick = () => {
     if (!confirm('Erase all parameters, products and inputs from this device? Export a CSV first if a backup is needed.')) return;
-    S = blank(); save(); setTab('params');
+    S = blank(); save(); openSettings('params');
   };
 }
 
@@ -1059,14 +1146,14 @@ $('#fileIn').onchange = async e => {
     if ((S.parameters.length || S.products.length) &&
         !confirm(`Replace current settings with ${data.parameters.length} parameters and ${data.products.length} products from ${f.name}?`)) return;
     S.title = data.title || S.title; S.parameters = data.parameters; S.products = data.products; S.inputs = {}; S.selectedId = null;
-    fix(S); save(); setTab('data');
+    fix(S); save(); openSettings('data');
     alert(`Imported ${data.parameters.length} parameters and ${data.products.length} products.` + (notes.length ? '\n\n' + notes.join('\n') : ''));
   } catch (err) { alert('Import failed: ' + err.message); }
 };
 async function exportCSV(){
   const name = `ProductMatch-Settings-${localDate()}.csv`;
   const file = new File(['﻿' + toCSV()], name, {type: 'text/csv'});
-  const done = () => { S.lastExport = Date.now(); save(); if (S.tab === 'data') renderData(); };
+  const done = () => { S.lastExport = Date.now(); save(); if (S.tab === 'settings' && S.sec === 'data') renderSettings(); };
   if (navigator.canShare && navigator.canShare({files: [file]})) {
     try { await navigator.share({files: [file], title: name}); done(); return; }
     catch (e) { if (e.name === 'AbortError') return; }
@@ -1103,7 +1190,7 @@ function sample(){
 
 /* ======================= START ======================= */
 save();
-setTab(S.tab || (configured() ? 'match' : 'params'));
+setTab('match');   // Match is always the opening view; inputs are kept from last time
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
