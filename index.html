@@ -68,13 +68,6 @@ select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var
 .ends .val{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .ends .val.warn-text{color:var(--warn)}
 .bot{display:flex;align-items:center;gap:8px;margin-top:4px;min-height:26px}
-.dots{flex:none;border:1px solid var(--line);background:var(--soft);border-radius:8px;width:36px;height:26px;font-size:15px;line-height:1;color:var(--ink);cursor:pointer;padding:0}
-.inp{position:relative}
-/* Manual entry floats over the lower part of its tile, so opening or closing it never moves other tiles. */
-.manual{display:none;gap:8px;position:absolute;left:10px;right:10px;bottom:8px;z-index:3;padding:6px;border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:0 4px 16px rgba(16,24,40,.18)}
-.manual.open{display:flex;animation:fadeIn .15s ease}
-.manual input{font-size:17px;padding:8px 10px}
-.manual .btn{flex:none}
 .yn{display:flex;gap:8px;margin:8px 0 2px}
 .rb{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font-weight:600;cursor:pointer}
 .rb input{width:20px;height:20px;margin:0;padding:0;accent-color:var(--accent)}
@@ -85,6 +78,16 @@ select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var
 .vchip{flex:none;min-width:52px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--muted);font:inherit;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;cursor:pointer;scroll-snap-align:center}
 .vchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .ring .v{text-align:center}
+.inp{position:relative}
+.valin{width:132px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;font-size:18px;font-weight:700;color:var(--ink);padding:3px 8px;border-radius:8px;font-variant-numeric:tabular-nums;cursor:text}
+.valin::placeholder{color:var(--muted);font-weight:600}
+.valin:focus{background:var(--soft);border-color:var(--accent);outline:none}
+.valin.warn-text{color:var(--warn)}
+.ends{align-items:center}
+.inp .desc{max-width:78%}
+/* Input Parameters as a two-tile sliding pane while All Products is open */
+.grid.pane{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scroll-snap-type:y proximity;border-radius:14px;box-shadow:inset 0 -10px 10px -10px rgba(0,0,0,.25)}
+.grid.pane>.inp{scroll-snap-align:start}
 @keyframes shake{0%,100%{transform:none}15%{transform:translateX(-9px)}30%{transform:translateX(8px)}45%{transform:translateX(-6px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
 @keyframes badflash{0%,35%{background:color-mix(in srgb,var(--bad) 16%,var(--card));border-color:var(--bad);box-shadow:0 0 0 2px var(--bad)}100%{}}
 .inp.bad{animation:shake .45s ease,badflash 1.3s ease}
@@ -282,7 +285,7 @@ function fix(s){
     if (p.type === 'number' && p.res === 'var' && Array.isArray(p.vals) && p.vals.some(v => typeof v === 'number')) { p.nums = p.vals.filter(v => typeof v === 'number' && isFinite(v)); p.vals = []; }
     if (!TYPES[p.type]) p.type = 'number';
     if (TYPES[p.type].unit) p.unit = TYPES[p.type].unit;
-    if (p.type === 'text') { p.unit = ''; p.min = null; p.max = null; }
+    if (p.type === 'text') { p.unit = p.unit || ''; p.min = null; p.max = null; }
     p.nums = Array.isArray(p.nums) ? p.nums.filter(v => typeof v === 'number' && isFinite(v)) : [];
     if (p.type === 'boolean') { p.unit = ''; p.min = null; p.max = null; }
     if (p.def === undefined) p.def = null;
@@ -290,6 +293,7 @@ function fix(s){
     if (p.type === 'number' && p.res !== 'var') p.res = Number(p.res);
     if (p.type === 'percent') { if (!PCT_PREC.includes(String(p.res))) p.res = 1; p.res = Number(p.res); if (!(p.step > 0)) p.step = 25; }
     if (!ROUND[p.round]) p.round = 'nearest';
+    if (p.type === 'number' && p.res !== 'var' && !(Number(p.step) > 0)) p.step = Number(p.res) || 0.1;
     if (p.dir !== 'desc') p.dir = 'asc';
     p.vals = Array.isArray(p.vals) ? p.vals : [];
   });
@@ -354,7 +358,11 @@ function resOf(p){
   return null;
 }
 // Slider increment: % uses its own step; other fixed types use their precision.
-function stepOf(p){ return p.type === 'percent' ? (Number(p.step) > 0 ? Number(p.step) : 25) : resOf(p); }
+function stepOf(p){
+  if (p.type === 'percent') return Number(p.step) > 0 ? Number(p.step) : 25;
+  if (p.type === 'number' && !isNumVar(p)) return Number(p.step) > 0 ? Number(p.step) : resOf(p);
+  return resOf(p);
+}
 const prec = p => resOf(p) == null ? null : decOf(resOf(p));
 function roundP(p, v){ if (v == null) return null; const d = prec(p); return d == null ? v : Number(v.toFixed(d)); }
 // Snap a value to the parameter's precision (or nearest defined value) using a rounding mode.
@@ -394,7 +402,7 @@ function resText(p){
   if (p.type === 'percent') return `precision ${resOf(p)}%, step ${stepOf(p)}%`;
   if (isVar(p)) return `${varList(p).length} values, numbered ${p.dir === 'desc' ? 'descending' : 'ascending'}`;
   if (isNumVar(p)) return `Variable (${numList(p).length} values)`;
-  if (p.type === 'number') return `resolution ${resOf(p)}${p.unit ? ' ' + p.unit : ''}`;
+  if (p.type === 'number') return `precision ${resOf(p)}, step ${stepOf(p)}${p.unit ? ' ' + p.unit : ''}`;
   return 'Yes / No';
 }
 function ruleText(p){
@@ -481,12 +489,10 @@ function sliderSpec(p){
   }
   const step = stepOf(p) || 1;
   if (!(hi > lo)) hi = lo + step;
-  const rlo = lo, rhi = hi;
-  let dec = Math.max(decOf(step), prec(p) ?? 0), st = step;
-  const a = Math.ceil(lo / step - 1e-9) * step, b = Math.floor(hi / step + 1e-9) * step;
-  if (b > a) { lo = Number(a.toFixed(dec)); hi = Number(b.toFixed(dec)); }
-  else { st = hi - lo; dec = 6; }
-  return {lo, hi, step: st, dec, src, rlo, rhi};
+  // Positions: lo, lo + step, … up to hi (hi is always the last position).
+  const n = Math.max(1, Math.ceil((hi - lo) / step - 1e-9));
+  const dec = Math.max(decOf(step), decOf(lo), decOf(hi), prec(p) ?? 0);
+  return {lo: 0, hi: n, step: 1, n, vstep: step, dec, src, rlo: lo, rhi: hi};
 }
 function refSpan(p){
   if (isList(p)) { const [a, b] = limits(p); return b > a ? b - a : 1; }
@@ -627,7 +633,9 @@ document.addEventListener('click', e => {
   if (c) {
     const sec = c.closest('section'), closing = !sec.classList.contains('collapsed');
     S.collapsed = S.collapsed || {}; S.collapsed[c.dataset.collapse] = closing; save();
-    slide(sec, closing); return;
+    slide(sec, closing);
+    if (c.dataset.collapse.startsWith('m-')) matchSectionToggled(c.dataset.collapse, !closing);
+    return;
   }
   const acc = e.target.closest('[data-acc]');
   if (acc && !e.target.closest('button')) {   // accordion: one section open at a time
@@ -637,6 +645,12 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-go]');
   if (t) go(t.dataset.go);
 });
+// Close the keyboard when anything other than a text field is pressed.
+const isEntry = el => el && el.matches && el.matches('textarea, select, input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button])');
+document.addEventListener('pointerdown', e => {
+  const a = document.activeElement;
+  if (isEntry(a) && a !== e.target && !isEntry(e.target)) a.blur();
+}, true);
 $('#gear').onclick = () => S.tab === 'settings' ? setTab('match') : openSettings(null);
 // Chip rows scroll together so each parameter stays in one column.
 const chipX = {};   // scroll position per list
@@ -689,87 +703,105 @@ function renderMatch(){
       <button class="btn" data-go="data">Import CSV</button></div>`;
     return;
   }
+  S.collapsed = S.collapsed || {};
+  if (S.collapsed['m-list'] === undefined) S.collapsed['m-list'] = true;   // All Products starts collapsed
   view.innerHTML =
-    section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid">${S.parameters.map(inputCard).join('')}</div>`) +
+    section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`) +
     section('m-result', 'Result', '', '<div id="result"></div>') +
     section('m-list', 'All Products', '', `<div id="list"></div>
       <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div>`, 'listTitle');
-  // Manual entry (opened with ⋯). The value is accepted when the box loses focus (Done, Enter,
-  // closing the keyboard or tapping elsewhere), using the parameter's rounding. Values outside the
-  // allowable range are accepted and flagged. Invalid entries shake and highlight the tile.
+  // Value above the slider: shown as text; tapping it turns it into an entry field.
+  // The entry is accepted when the field loses focus, using the parameter's rounding.
   view.querySelectorAll('input[data-in]').forEach(el => {
+    el.addEventListener('focus', () => { el.dataset.prev = el.value; el.placeholder = el.value || '—'; el.value = ''; el.closest('.inp').classList.add('editing'); });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
-    el.addEventListener('blur', () => commitManual(el));
+    el.addEventListener('blur', () => commitValue(el));
   });
-  view.querySelectorAll('[data-dots]').forEach(b => b.onclick = () => {
-    const m = view.querySelector(`[data-man="${b.dataset.dots}"]`);
-    if (m.classList.contains('open')) { m.querySelector('input').blur(); return; }
-    m.classList.add('open');
-    const i = m.querySelector('input'); i.value = ''; i.focus();   // start with a clear box
-  });
-  view.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
-    const i = view.querySelector(`[data-man="${b.dataset.done}"] input`);
-    if (document.activeElement === i) i.blur(); else commitManual(i);
-  });
-  // Variable values: tap a value to select it
+  // Listed values: tap a value to select it
   view.querySelectorAll('[data-vp]').forEach(b => b.onclick = () => {
     const p = P(b.dataset.vp), v = sliderSpec(p).items[Number(b.dataset.vi)].v;
-    syncSlider(p.id, v); setInput(p.id, v);
+    syncSlider(p.id, v); userInput(p.id, v);
   });
   // Yes / No radio buttons (tap the selected one again to clear it)
   view.querySelectorAll('[data-yn]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.yn;
-    if (S.inputs[id] === el.value) { el.checked = false; setInput(id, null); } else setInput(id, el.value);
+    if (S.inputs[id] === el.value) { el.checked = false; userInput(id, null); } else userInput(id, el.value);
   }));
-  // Slider -> value (moves at the parameter's resolution)
+  // Slider -> value
   view.querySelectorAll('[data-s]').forEach(el => el.addEventListener('input', () => {
     const id = el.dataset.s, sp = sliderSpec(P(id));
-    const v = sp.isVar ? sp.items[Number(el.value)].v : Number(Number(el.value).toFixed(sp.dec));
+    const v = sp.isVar ? sp.items[Number(el.value)].v : posVal(sp, Number(el.value));
     el.classList.remove('unset');
-    setInput(id, v);
+    userInput(id, v);
   }));
+  // Reset: defaults are placed, but no result is shown until a parameter is entered.
   $('#resetIn').onclick = () => {
     S.inputs = {}; S.parameters.forEach(p => { if (p.def != null) S.inputs[p.id] = p.def; });
-    S.selectedId = null; save(); renderMatch(); toast('Inputs reset to parameter defaults');
+    S.selectedId = null; S.ready = false;
+    S.collapsed['m-list'] = true; S.collapsed['m-result'] = false;
+    save(); renderMatch(); toast('Inputs reset to parameter defaults');
   };
   updateMatch();
+  layoutMatch();
 }
-// The control the person pressed last; used to keep that tile still when an open entry box closes.
-let lastPress = null;
-document.addEventListener('pointerdown', e => { lastPress = {el: e.target, t: Date.now()}; }, true);
-function commitManual(el){
-  const m = el.closest('.manual');
-  if (!m || !m.classList.contains('open') || m._busy) return;
-  m._busy = true;
+// Slider positions run from the allowable minimum in steps of the parameter's step; the maximum is
+// always the last position, even when the range is not a whole number of steps.
+function posVal(sp, i){ return i >= sp.n ? sp.rhi : Number((sp.rlo + i * sp.vstep).toFixed(sp.dec)); }
+function posIdx(sp, v){
+  if (v == null) return Math.round(sp.n / 2);
+  if (v >= sp.rhi) return sp.n;
+  if (v <= sp.rlo) return 0;
+  let i = Math.round((v - sp.rlo) / sp.vstep);
+  if (i >= sp.n) i = Math.abs(v - posVal(sp, sp.n - 1)) <= Math.abs(v - sp.rhi) ? sp.n - 1 : sp.n;
+  return Math.max(0, Math.min(sp.n, i));
+}
+function commitValue(el){
+  if (el._busy) return;
+  el._busy = true;
   const id = el.dataset.in, p = P(id), tile = el.closest('.inp'), text = el.value.trim();
-  const pressed = lastPress && Date.now() - lastPress.t < 800 && lastPress.el.isConnected ? lastPress.el.closest('.card') : null;
-  const anchor = pressed || tile, top0 = anchor.getBoundingClientRect().top;
-  const invalid = (el.validity && el.validity.badInput) || (text !== '' && num(text) == null);
-  m.classList.remove('open'); el.value = '';
-  if (invalid) {
+  tile.classList.remove('editing');
+  if (text !== '' && num(text) == null) {
     attention(tile); toast(`${p.name}: enter a number`);
   } else if (text !== '') {
     const raw = num(text), v = snap(p, raw, p.round);
-    syncSlider(id, v); setInput(id, v);
+    syncSlider(id, v); userInput(id, v);
     if (v !== raw) toast(`${p.name}: ${fmt(raw)} → ${fmt(v)} (${ROUND[p.round].toLowerCase()})`);
   }
-  // Keep the tile the person moved to (or this tile) at the same place on screen.
-  if (anchor.isConnected) window.scrollBy(0, anchor.getBoundingClientRect().top - top0);
-  m._busy = false;
+  showValue(p);
+  el._busy = false;
+}
+function showValue(p){
+  const el = view.querySelector(`input[data-in="${p.id}"]`);
+  if (!el || document.activeElement === el) return;
+  const v = S.inputs[p.id];
+  const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
+  el.value = v == null ? '' : fmt(v); el.placeholder = '—';
+  el.classList.toggle('warn-text', out);
+  el.title = out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : '';
 }
 function attention(tile){
   tile.classList.remove('bad'); void tile.offsetWidth; tile.classList.add('bad');
   clearTimeout(tile._bad); tile._bad = setTimeout(() => tile.classList.remove('bad'), 1300);
 }
 function setInput(id, v){ if (v == null) delete S.inputs[id]; else S.inputs[id] = v; S.selectedId = null; save(); updateMatch(); }
+// A change made by the person: results start (or refresh); All Products collapses so the result shows.
+function userInput(id, v){
+  const first = !S.ready;
+  S.ready = true;
+  if (!S.collapsed['m-list'] || S.collapsed['m-result']) {
+    S.collapsed['m-list'] = true; S.collapsed['m-result'] = false;
+    setSection('m-list', false); setSection('m-result', true); layoutMatch();
+  }
+  setInput(id, v);
+  if (first) save();
+}
 function syncSlider(id, v){
   const s = view.querySelector(`[data-s="${id}"]`);
   if (!s) return;
   s.classList.toggle('unset', v == null);
   if (v == null) return;
-  const p = P(id);
-  if (isList(p)) s.value = Math.max(0, listIndex(p, v));
-  else s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
+  const p = P(id), sp = sliderSpec(p);
+  s.value = isList(p) ? Math.max(0, listIndex(p, v)) : posIdx(sp, v);
 }
 // Highlight the selected value in the strip and bring it into view.
 function showVar(p, v, smooth){
@@ -780,60 +812,66 @@ function showVar(p, v, smooth){
   const c = strip.children[idx];
   if (c) strip.scrollTo({left: c.offsetLeft - strip.clientWidth / 2 + c.offsetWidth / 2, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'});
 }
-// Compact card: name + weight on top; slider; value; range/default + units + ⋯ at the bottom.
+// Open or close a Match section without re-rendering.
+function setSection(key, open){
+  S.collapsed[key] = !open;
+  const sec = view.querySelector(`[data-section="${key}"]`);
+  if (sec && sec.classList.contains('collapsed') === open) slide(sec, !open);
+}
+// While All Products is open, Input Parameters becomes a sliding pane two tiles tall.
+function layoutMatch(){
+  const grid = $('#inGrid');
+  if (!grid) return;
+  const pane = !S.collapsed['m-list'] && !S.collapsed['m-inputs'];
+  grid.classList.toggle('pane', pane);
+  grid.style.maxHeight = '';
+  if (pane) {
+    const tiles = grid.children;
+    if (tiles.length > 2) grid.style.maxHeight = (tiles[2].offsetTop - tiles[0].offsetTop - 2) + 'px';
+  }
+}
+function matchSectionToggled(key, open){
+  if (key === 'm-list') {
+    if (open) setSection('m-result', false);          // show inputs (two at a time) and the product list
+    else if (S.ready) setSection('m-result', true);
+  }
+  save(); setTimeout(layoutMatch, 240);
+}
+// Tile: name and weight; description and units; value (tap to type) between the range ends; slider (lowest).
 function inputCard(p){
   const v = S.inputs[p.id];
   const top = `<div class="top"><b>${esc(p.name)}</b><span class="spacer"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>`;
+  const desc = `<div class="bot"><span class="xsmall muted clamp desc">${esc(p.details)}</span><span class="spacer"></span><span class="xsmall muted">${esc(isBool(p) ? 'Y/N' : p.unit)}</span></div>`;
   if (isBool(p)) {
-    return `<div class="card inp">${top}
+    return `<div class="card inp" data-tile="${p.id}">${top}${desc}
       <div class="yn" role="radiogroup" aria-label="${esc(p.name)}">
         <label class="rb"><input type="radio" name="yn-${p.id}" value="yes" data-yn="${p.id}" ${v === 'yes' ? 'checked' : ''}>Yes</label>
         <label class="rb"><input type="radio" name="yn-${p.id}" value="no" data-yn="${p.id}" ${v === 'no' ? 'checked' : ''}>No</label>
       </div>
-      <div class="bot"><span class="xsmall muted">Default: ${p.def ? BL[p.def] : 'none'}</span><span class="spacer"></span><span class="xsmall muted">Y/N</span></div>
     </div>`;
   }
   const sp = sliderSpec(p), li = listIndex(p, v);
-  const pos = sp.isVar ? (li < 0 ? Math.floor(sp.hi / 2) : li)
-    : v == null ? Number((sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step).toFixed(sp.dec)) : Math.min(sp.hi, Math.max(sp.lo, v));
+  const pos = sp.isVar ? (li < 0 ? Math.floor(sp.hi / 2) : li) : posIdx(sp, v);
   const scale = sp.isVar
     ? `<div class="vstrip" data-strip="${p.id}">${sp.items.map((x, i) => `<button class="vchip" data-vp="${p.id}" data-vi="${i}">${esc(x.label)}</button>`).join('')}</div>`
-    : `<div class="ends"><span>${fmt(sp.lo)}</span><span class="val" data-val="${p.id}">${v == null ? '—' : fmt(v)}</span><span>${fmt(sp.hi)}</span></div>`;
-  // Order: name and weight; range, default, units and ⋯; manual entry; value scale; slider (lowest).
-  return `<div class="card inp" data-tile="${p.id}">${top}
-    <div class="bot"><span class="xsmall" data-hint="${p.id}"></span><span class="spacer"></span><span class="xsmall muted">${esc(p.unit)}</span>
-      ${sp.isVar ? '' : `<button class="dots" data-dots="${p.id}" aria-label="Enter ${esc(p.name)} manually">⋯</button>`}</div>
-    ${sp.isVar ? '' : `<div class="manual" data-man="${p.id}"><input type="number" step="${resOf(p) || 'any'}" inputmode="decimal" data-in="${p.id}" value="" placeholder="Enter value (${ROUND[p.round].toLowerCase()})" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>`}
-    ${scale}
+    : `<div class="ends"><span>${fmt(sp.rlo)}</span><input class="valin" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-in="${p.id}" value="${v == null ? '' : fmt(v)}" placeholder="—" aria-label="${esc(p.name)} value"><span>${fmt(sp.rhi)}</span></div>`;
+  return `<div class="card inp" data-tile="${p.id}">${top}${desc}${scale}
     <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
   </div>`;
 }
 function updateMatch(){
-  const {res, act} = rank();
+  let {res, act} = rank();
   S.parameters.forEach(p => {
     if (isBool(p)) return;
-    const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), sp = sliderSpec(p);
-    const out = !isList(p) && v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
-    if (isList(p)) showVar(p, v, true);
-    if (h && isVar(p)) {
-      h.className = 'xsmall muted';
-      h.textContent = `Numbered ${p.dir === 'desc' ? 'descending' : 'ascending'} · Default: ${p.def != null && vlabel(p, p.def) != null ? vlabel(p, p.def) : 'none'}`;
-    } else if (h && isNumVar(p)) {
-      h.className = 'xsmall muted';
-      h.textContent = `Values: ${fmt(sp.rlo)} – ${fmt(sp.rhi)} · Default: ${p.def == null ? 'none' : fmt(p.def)}`;
-    } else if (h) {
-      h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
-      h.textContent = (out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.rlo)} – ${fmt(sp.rhi)}`)
-        + ` · Default: ${p.def == null ? 'none' : fmt(p.def)}`;
-    }
-    const ve = view.querySelector(`[data-val="${p.id}"]`);
-    if (ve) { ve.textContent = v == null ? '—' : fmt(v); ve.classList.toggle('warn-text', out); }
+    if (isList(p)) showVar(p, S.inputs[p.id], true); else showValue(p);
   });
+  // No result until a parameter is entered after opening or Reset.
+  if (!S.ready) act = [];
   const anyRel = res.some(r => r.n > 0);
   const box = $('#result');
   const shown = act.length && anyRel ? (res.find(r => r.pr.id === S.selectedId) || res[0]) : null;
   if (!act.length) {
-    box.innerHTML = `<div class="card empty muted"><div class="big">☝️</div>Enter one or more parameters above to identify the best-matching product.</div>`;
+    box.innerHTML = `<div class="card empty muted"><div class="big">☝️</div>${S.ready ? 'Enter one or more parameters above to identify the best-matching product.' : 'Move a slider, enter a value or select an option above to see the best match.'}</div>`;
   } else if (!anyRel) {
     box.innerHTML = `<div class="card empty muted">None of the entered parameters are marked relevant for any product. Review relevance on the Products tab.</div>`;
   } else {
@@ -879,8 +917,9 @@ function updateMatch(){
   syncChips($('#list'));
   $('#list').querySelectorAll('[data-row]').forEach(el => el.onclick = () => {
     if (!scored) return;
-    S.selectedId = el.dataset.row; save(); updateMatch();
-    $('#result').scrollIntoView({behavior: 'smooth', block: 'start'});
+    S.selectedId = el.dataset.row;
+    setSection('m-result', true); setSection('m-inputs', false); save(); updateMatch(); layoutMatch();
+    setTimeout(() => view.querySelector('[data-section="m-result"]').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}), 240);
   });
 }
 function fitRow(p, f){
@@ -894,7 +933,7 @@ function fitRow(p, f){
   }
   const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Within range' : f.st === 'missing' ? 'No data'
     : (f.d < 0 ? 'Below by ' : 'Above by ') + fmt(Math.abs(f.d)) + (isVar(p) ? (Math.abs(f.d) === 1 ? ' position' : ' positions') : p.unit ? ' ' + p.unit : '');
-  const sp = sliderSpec(p), e = productExtent(p), d0 = sp.isVar ? sp.rlo : sp.lo, d1 = sp.isVar ? sp.rhi : sp.hi;
+  const sp = sliderSpec(p), e = productExtent(p), d0 = sp.rlo, d1 = sp.rhi;
   let lo = Math.min(d0, e ? e[0] : d0, f.v), hi = Math.max(d1, e ? e[1] : d1, f.v);
   if (hi <= lo) hi = lo + 1;
   const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
@@ -963,8 +1002,8 @@ function editParam(id){
         ${S.products.map(pr => `<label class="chk enrow"><input type="checkbox" data-en="${pr.id}" ${enabledNow(pr) ? 'checked' : ''}><span>${esc(pr.name)}</span></label>`).join('')}
       </div>
       <div class="xsmall muted" style="margin:5px 2px">${id ? 'Checked products use this parameter.' : 'Select the products this new parameter applies to.'} Their values are entered on the Products tab; products missing values are highlighted until complete.</div></details>` : '';
-  const numRes = p.type === 'number' ? String(p.res) : '0.1';
-  const pctRes = p.type === 'percent' ? String(p.res) : '1';
+  // Precision chosen per type (kept while switching types in the editor).
+  const precSel = {number: p.type === 'number' ? String(p.res) : '0.1', percent: p.type === 'percent' ? String(p.res) : '1'};
   openSheet(id ? 'Edit Parameter' : 'New Parameter', `
     <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
     <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
@@ -972,12 +1011,9 @@ function editParam(id){
     <div class="field" id="rangeWrap"><label id="rangeLabel">Allowable range (optional)</label>
       <div class="pair"><input id="fMin" type="number" value="${isList(p) ? '' : plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${isList(p) ? '' : plain(p.max)}" placeholder="Maximum"></div>
       <div class="xsmall muted" id="rangeNote" style="margin:5px 2px"></div></div>
-    <div class="field" id="resWrap"><label>Resolution</label>
-      <select id="fRes">${NUM_RES.map(r => `<option value="${r}" ${numRes === r ? 'selected' : ''}>${r === 'var' ? 'Variable (listed numbers)' : r}</option>`).join('')}</select></div>
-    <div class="field" id="pctWrap"><label>Precision and slider step</label>
-      <div class="pair"><select id="fPrec">${PCT_PREC.map(r => `<option value="${r}" ${pctRes === r ? 'selected' : ''}>Precision ${r}%</option>`).join('')}</select>
-        <span>step</span><input id="fStep" type="number" min="0" value="${p.type === 'percent' ? plain(p.step) : '25'}" placeholder="25"></div>
-      <div class="xsmall muted" style="margin:5px 2px">Precision applies to typed and product values. The slider moves in steps of the step value.</div></div>
+    <div class="field" id="precWrap"><label>Precision and slider step</label>
+      <div class="pair"><select id="fPrec"></select><span id="stepLbl">step</span><input id="fStep" type="number" min="0" inputmode="decimal" value="${p.type === 'percent' || p.type === 'number' ? plain(p.step) : ''}" placeholder="Step"></div>
+      <div class="xsmall muted" style="margin:5px 2px" id="precNote"></div></div>
     <div class="field" id="valsWrap"><label>Values (<span id="valCount">0</span>)</label>
       <div id="valList"></div>
       <div class="pair" style="margin-top:6px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="dirBtn" style="flex:1"></button></div>
@@ -986,12 +1022,12 @@ function editParam(id){
       <select id="fRound">${Object.entries(ROUND).map(([k, t]) => `<option value="${k}" ${p.round === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <div class="xsmall muted" style="margin:5px 2px" id="roundNote"></div></div>
     <div class="field" id="defNumWrap"><label>Default value (optional)</label>
-      <input id="fDef" type="number" value="${isBool(p) || isList(p) || typeof p.def !== 'number' ? '' : plain(p.def)}" placeholder="None">
+      <input id="fDef" type="number" value="${isBool(p) || isList(p) || typeof p.def !== 'number' ? '' : plain(p.def)}" placeholder="Blank">
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab. Snaps to the precision and allowable range.</div></div>
     <div class="field" id="defVarWrap"><label>Default value (optional)</label><select id="fDefV"></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
     <div class="field" id="defBoolWrap"><label>Default value (optional)</label>
-      <select id="fDefB"><option value="">None</option><option value="yes" ${p.def === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.def === 'no' ? 'selected' : ''}>No</option></select>
+      <select id="fDefB"><option value="">Blank</option><option value="yes" ${p.def === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.def === 'no' ? 'selected' : ''}>No</option></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
     <div class="field"><label>Default weight: <span id="fWv">${p.weight}</span> of 10</label>
       <input id="fW" type="range" min="0" max="10" step="1" value="${p.weight}">
@@ -1002,7 +1038,7 @@ function editParam(id){
     () => {
       const type = $('#fType').value, t = TYPES[type];
       const name = $('#fName').value.trim();
-      const res = type === 'number' ? ($('#fRes').value === 'var' ? 'var' : Number($('#fRes').value)) : type === 'percent' ? Number($('#fPrec').value) : null;
+      const res = type === 'number' ? ($('#fPrec').value === 'var' ? 'var' : Number($('#fPrec').value)) : type === 'percent' ? Number($('#fPrec').value) : null;
       const probe = {type, res};
       const textList = type === 'text', numVar = type === 'number' && res === 'var';
       if (!name) return 'Enter a parameter name.';
@@ -1022,7 +1058,7 @@ function editParam(id){
         min = roundP(probe, num($('#fMin').value)); max = roundP(probe, num($('#fMax').value));
         if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
       }
-      if (type === 'percent') {
+      if (type === 'percent' || (type === 'number' && !numVar)) {
         step = num($('#fStep').value);
         if (!(step > 0)) return 'Enter a slider step greater than 0.';
         step = Math.max(res, Math.round(step / res) * res); step = Number(step.toFixed(decOf(res)));
@@ -1037,9 +1073,9 @@ function editParam(id){
         S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; });
         delete S.inputs[p.id];
       }
-      Object.assign(p, {name, type, unit: type === 'boolean' || textList ? '' : (t.unit || $('#fUnit').value.trim()), min, max, def,
+      Object.assign(p, {name, type, unit: type === 'boolean' ? '' : (t.unit || $('#fUnit').value.trim()), min, max, def,
         res: type === 'text' || type === 'boolean' ? null : res, step: step ?? p.step,
-        vals: textList ? labels : [], nums: numVar ? nums : [], dir: textList ? dir : 'asc',
+        vals: textList ? labels : [], nums: numVar ? nums : [], dir: textList || numVar ? dir : 'asc',
         round: type === 'boolean' || textList || numVar ? 'nearest' : $('#fRound').value,
         weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
       // Keep references valid: deleted text values are cleared; numbers move to the parameter's precision / listed values.
@@ -1067,7 +1103,7 @@ function editParam(id){
       else if (nc) toast(`${nc} product value(s) no longer match a parameter. See Data ▸ Review.`);
     },
     () => {
-      const mode = () => $('#fType').value === 'text' ? 'text' : $('#fType').value === 'number' && $('#fRes').value === 'var' ? 'num' : null;
+      const mode = () => $('#fType').value === 'text' ? 'text' : $('#fType').value === 'number' && $('#fPrec').value === 'var' ? 'num' : null;
       // ----- listed values (add, move, duplicate, delete) -----
       const numFor = i => dir === 'desc' ? vals.length - i : i + 1;
       const drawVals = () => {
@@ -1078,7 +1114,7 @@ function editParam(id){
             <div class="acts"><button type="button" data-va="dup" data-i="${i}">Duplicate</button><button type="button" class="danger" data-va="del" data-i="${i}">Delete</button></div>
           </div>`).join('') : '<div class="card muted small" style="margin:0">No values yet. Select + Add value.</div>';
         $('#valCount').textContent = n;
-        $('#dirBtn').textContent = dir === 'desc' ? 'Numbering: descending ⇅' : 'Numbering: ascending ⇅';
+        $('#dirBtn').textContent = md === 'num' ? (dir === 'desc' ? 'Order: descending ⇅' : 'Order: ascending ⇅') : (dir === 'desc' ? 'Numbering: descending ⇅' : 'Numbering: ascending ⇅');
         refreshListUI();
       };
       const refreshListUI = () => {
@@ -1086,7 +1122,7 @@ function editParam(id){
         if (md === 'text') { $('#fMin').value = vals.length ? 1 : ''; $('#fMax').value = vals.length || ''; }
         if (md === 'num') { const nv = vals.map(v => num(v.t)).filter(x => x != null); $('#fMin').value = nv.length ? Math.min(...nv) : ''; $('#fMax').value = nv.length ? Math.max(...nv) : ''; }
         const prev = $('#fDefV').value || (p.def != null && isList(p) ? String(p.def) : '');
-        $('#fDefV').innerHTML = '<option value="">None</option>' + (md === 'text'
+        $('#fDefV').innerHTML = '<option value="">Blank</option>' + (md === 'text'
           ? vals.filter(v => v.t.trim()).map(v => `<option value="${v.id}" ${v.id === prev ? 'selected' : ''}>${esc(v.t)}</option>`)
           : [...new Set(vals.map(v => num(v.t)).filter(x => x != null))].map(x => `<option value="${x}" ${String(x) === prev ? 'selected' : ''}>${fmt(x)}</option>`)).join('');
       };
@@ -1109,49 +1145,79 @@ function editParam(id){
         drawVals();
         const inp = document.querySelector(`[data-vin="${vals.length - 1}"]`); if (inp) { inp.focus(); inp.select(); }
       };
-      $('#dirBtn').onclick = () => { dir = dir === 'desc' ? 'asc' : 'desc'; drawVals(); };
+      // Text: switches the numbering without moving values. Number: sorts the listed numbers ascending / descending.
+      $('#dirBtn').onclick = () => {
+        dir = dir === 'desc' ? 'asc' : 'desc';
+        if (mode() === 'num') vals.sort((a, b) => ((num(a.t) ?? Infinity) - (num(b.t) ?? Infinity)) * (dir === 'desc' ? -1 : 1));
+        drawVals();
+      };
       // ----- type-dependent fields -----
+      // Precision options per type; switching keeps each type's own selection.
+      let lastType = $('#fType').value;
+      const fillPrec = () => {
+        const type = $('#fType').value;
+        if (type !== 'number' && type !== 'percent') return;
+        const opts = type === 'number' ? NUM_RES : PCT_PREC, sel = precSel[type];
+        $('#fPrec').innerHTML = opts.map(r => `<option value="${r}" ${sel === r ? 'selected' : ''}>${r === 'var' ? 'Variable (listed numbers)' : `Precision ${r}${type === 'percent' ? '%' : ''}`}</option>`).join('');
+        if ($('#fStep').value === '') $('#fStep').value = type === 'percent' ? 25 : (sel === 'var' ? '' : sel);
+      };
+      // When the precision changes, the step is shown at that precision (and never below it).
+      const snapStep = () => {
+        const r = num($('#fPrec').value); if (!r) return;
+        $('#fStep').step = r;
+        const st = num($('#fStep').value);
+        if (st != null) $('#fStep').value = Number(Math.max(r, Math.round(st / r) * r).toFixed(decOf(r)));
+      };
       const apply = () => {
-        const type = $('#fType').value, t = TYPES[type], md = mode(), list = !!md;
+        const type = $('#fType').value, t = TYPES[type];
+        if (type !== lastType) { if (lastType === 'number' || lastType === 'percent') precSel[lastType] = $('#fPrec').value; $('#fStep').value = ''; lastType = type; }
+        fillPrec();
+        const md = mode(), list = !!md;
         const show = (sel, on) => $(sel).style.display = on ? '' : 'none';
-        show('#unitWrap', type === 'number');
-        show('#resWrap', type === 'number');
-        show('#pctWrap', type === 'percent');
+        show('#unitWrap', type === 'number' || type === 'text');
+        show('#precWrap', type === 'number' || type === 'percent');
+        show('#fStep', !list); show('#stepLbl', !list);
         show('#rangeWrap', type !== 'boolean');
         show('#valsWrap', list);
-        show('#dirBtn', md === 'text');
         show('#roundWrap', type !== 'boolean' && !list);
         show('#defNumWrap', type !== 'boolean' && !list);
         show('#defVarWrap', list);
         show('#defBoolWrap', type === 'boolean');
+        // Text: listed values sit above the allowable range; otherwise the range comes first.
+        if (md === 'text') $('#rangeWrap').before($('#valsWrap')); else $('#precWrap').before($('#rangeWrap')), $('#precWrap').after($('#valsWrap'));
         const u = $('#fUnit');
         if (t.unit) { u.value = t.unit; u.disabled = true; } else { if (u.disabled) u.value = ''; u.disabled = false; }
+        u.placeholder = type === 'text' ? 'Optional (e.g., grade, level)' : 'Optional (e.g., cm, days)';
         $('#fMin').disabled = $('#fMax').disabled = list;
-        if (!list && $('#fMin').disabled === false && (md === null) && $('#fMin')._wasList) { $('#fMin').value = ''; $('#fMax').value = ''; }
+        if (!list && $('#fMin')._wasList) { $('#fMin').value = ''; $('#fMax').value = ''; }
         $('#fMin')._wasList = list;
         if (type === 'percent' && $('#fMin').value === '' && $('#fMax').value === '') { $('#fMin').value = 0; $('#fMax').value = 100; }
-        const res = type === 'percent' ? Number($('#fPrec').value) : list ? 'any' : Number($('#fRes').value);
+        const res = list ? 'any' : num($('#fPrec').value) || 'any';
         $('#fMin').step = $('#fMax').step = $('#fDef').step = res;
-        $('#fStep').step = type === 'percent' ? Number($('#fPrec').value) : 'any';
-        $('#rangeLabel').textContent = md === 'text' ? 'Allowable range (positions in the list below)' : md === 'num' ? 'Allowable range (set by the listed numbers)' : 'Allowable range (optional)';
+        if (!list) snapStep();
+        $('#precNote').textContent = md === 'num' ? 'Variable: the slider steps through the listed numbers below.'
+          : 'Precision applies to typed and product values. The slider moves from the allowable minimum in steps of the step value and always reaches the maximum.';
+        $('#rangeLabel').textContent = md === 'text' ? 'Allowable range (positions in the list above)' : md === 'num' ? 'Allowable range (set by the listed numbers)' : 'Allowable range (optional)';
         $('#rangeNote').textContent = md === 'text' ? 'Set by the number of listed values.'
           : md === 'num' ? 'Lowest and highest of the listed numbers.'
-          : type === 'percent' ? 'Defaults to 0 – 100; can be changed. The slider moves in steps of the step value.'
-          : `Values outside this range can still be entered on Match and are flagged. The slider moves in steps of ${res}.`;
+          : type === 'percent' ? 'Defaults to 0 – 100; can be changed. The Match slider spans this range.'
+          : 'The Match slider spans this range. Values outside it can still be typed on Match and are flagged.';
         $('#valsNote').textContent = md === 'text'
           ? 'Text values. Each is numbered by its position in the list; the number is used for matching. The numbering button switches between ascending and descending without changing the order. The Match slider follows the list order.'
-          : 'Numbers only. Matching uses the numbers themselves. The Match slider steps through them in this order.';
+          : 'Numbers only. Matching uses the numbers themselves. The order button sorts them ascending or descending; the Match slider follows the list order.';
         const r = $('#fRound').value;
-        $('#roundNote').textContent = `A typed value is rounded ${r === 'up' ? 'up' : r === 'down' ? 'down' : 'to the nearest'} ${type === 'percent' ? $('#fPrec').value + '%' : res}${type === 'number' && $('#fUnit').value ? ' ' + $('#fUnit').value : ''}.`;
+        $('#roundNote').textContent = `A typed value is rounded ${r === 'up' ? 'up' : r === 'down' ? 'down' : 'to the nearest'} ${$('#fPrec').value}${type === 'percent' ? '%' : $('#fUnit').value ? ' ' + $('#fUnit').value : ''}.`;
         if (list) drawVals();
       };
+      $('#fPrec').onchange = () => { const type = $('#fType').value; precSel[type] = $('#fPrec').value; if ($('#fPrec').value !== 'var' && $('#fStep').value === '') $('#fStep').value = $('#fPrec').value; apply(); };
       // Snap the default to the precision and range when leaving the field.
       $('#fDef').onchange = () => {
         const type = $('#fType').value, v = num($('#fDef').value);
-        const res = type === 'percent' ? Number($('#fPrec').value) : type === 'number' ? Number($('#fRes').value) : null;
+        const res = type === 'percent' || type === 'number' ? Number($('#fPrec').value) : null;
         if (v != null) $('#fDef').value = conformValue({type, res, min: num($('#fMin').value), max: num($('#fMax').value)}, v);
       };
-      ['#fType', '#fRes', '#fPrec', '#fRound'].forEach(s => $(s).onchange = apply);
+      ['#fType', '#fRound'].forEach(s => $(s).onchange = apply);
+      $('#fStep').onchange = snapStep;
       apply(); drawVals();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
       if ($('#enAll')) {
@@ -1363,7 +1429,8 @@ function renderData(box){
 
 /* ======================= CSV ======================= */
 // [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description
-//   Type: Number / % / Text / Y/N. Resolution: Number = 1 / 0.1 / 0.02 / Variable; % = precision. Step: % slider step.
+//   Type: Number / % / Text / Y/N. Resolution (precision): Number = 1 / 0.1 / 0.02 / Variable; % = 1 / 0.1 / 0.01.
+//   Step: slider step for Number and %. Numbering: Text numbering, or the order of listed numbers.
 //   Values: Text values or Number (Variable) numbers separated by semicolons; Numbering (Text): Ascending / Descending.
 //   Rounding: Nearest / Round up / Round down. Product cells for Variable parameters hold the value text.
 // [PRODUCTS]   Product, Description, Link, then per parameter:
@@ -1387,9 +1454,9 @@ function toCSV(){
   S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isList(p) ? '' : plain(p.min), isList(p) ? '' : plain(p.max),
     isBool(p) || isVar(p) ? '' : isNumVar(p) ? 'Variable' : plain(resOf(p)),
-    p.type === 'percent' ? plain(stepOf(p)) : '',
+    p.type === 'percent' || (p.type === 'number' && !isNumVar(p)) ? plain(stepOf(p)) : '',
     isVar(p) ? varList(p).map(v => v.t).join('; ') : isNumVar(p) ? numList(p).join('; ') : '',
-    isVar(p) ? (p.dir === 'desc' ? 'Descending' : 'Ascending') : '',
+    isList(p) ? (p.dir === 'desc' ? 'Descending' : 'Ascending') : '',
     isBool(p) || isList(p) ? '' : ROUND[p.round],
     p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
@@ -1458,10 +1525,11 @@ function fromCSV(text){
       let w = num(col(['weight']));
       w = w == null ? 5 : Math.max(0, Math.min(10, Math.round(w)));
       const listed = type === 'text' || res === 'var';
-      out.parameters.push({id: uid('p'), name, type, unit: type === 'boolean' || type === 'text' ? '' : (TYPES[type].unit || unit || (rawType.includes('cm') ? 'cm' : '')),
+      out.parameters.push({id: uid('p'), name, type, unit: type === 'boolean' ? '' : (TYPES[type].unit || unit || (rawType.includes('cm') ? 'cm' : '')),
         min: type === 'boolean' || listed ? null : roundP(probe, num(col(['range min', 'min', 'minimum']))),
         max: type === 'boolean' || listed ? null : roundP(probe, num(col(['range max', 'max', 'maximum']))),
-        res, step: type === 'percent' ? (num(col(['step', 'slider step'])) > 0 ? num(col(['step', 'slider step'])) : 25) : null,
+        res, step: type === 'percent' ? (num(col(['step', 'slider step'])) > 0 ? num(col(['step', 'slider step'])) : 25)
+          : type === 'number' && res !== 'var' ? (num(col(['step', 'slider step'])) > 0 ? num(col(['step', 'slider step'])) : res) : null,
         vals: type === 'text' ? valList.map(t => ({id: uid('v'), t})) : [],
         nums: res === 'var' ? [...new Set(valList.map(num).filter(x => x != null))] : [],
         dir: String(col(['numbering', 'order']) ?? '').toLowerCase().startsWith('desc') ? 'desc' : 'asc',
@@ -1548,7 +1616,7 @@ $('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (type
 function sample(){
   const P0 = (name, type, extra) => Object.assign({id: uid('p'), name, type, unit: TYPES[type].unit || '', min: null, max: null, def: null, weight: 5, details: '', res: 1, step: 25, vals: [], nums: [], dir: 'asc', round: 'nearest'}, extra);
   const params = [
-    P0('Length', 'number', {unit: 'cm', res: 0.1, min: 0, max: 30, def: 5, weight: 8, details: 'Measured to the nearest 0.1 cm.'}),
+    P0('Length', 'number', {unit: 'cm', res: 0.1, step: 0.5, min: 0, max: 30, def: 5, weight: 8, details: 'Measured to the nearest 0.1 cm.'}),
     P0('Coverage', 'percent', {min: 0, max: 100, def: 50, weight: 6, res: 1, step: 25, details: 'Precision 1%, slider step 25%.'}),
     P0('Exudate level', 'text', {res: null, vals: ['None', 'Light', 'Moderate', 'Heavy'].map(t => ({id: uid('v'), t})), dir: 'asc', weight: 4, details: 'Listed values, numbered by position (None = 1 … Heavy = 4).'}),
     P0('Option Required', 'boolean', {def: 'no', weight: 9, details: 'Yes or No.'}),

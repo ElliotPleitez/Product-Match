@@ -3,11 +3,11 @@ Title,Example Selector - replace with project data
 
 [PARAMETERS]
 Name,Type,Unit,Range Min,Range Max,Resolution,Step,Values,Numbering,Rounding,Default,Weight,Description
-Length,Number,cm,0,30,0.1,,,,Nearest,5,8,Measured to the nearest 0.1 cm.
+Length,Number,cm,0,30,0.1,0.5,,,Nearest,5,8,Measured to the nearest 0.1 cm.
 Coverage,%,%,0,100,1,25,,,Nearest,50,6,"Precision 1%, slider step 25%."
 Exudate level,Text,,,,,,None; Light; Moderate; Heavy,Ascending,,Moderate,4,"Listed values, numbered by position (None = 1 … Heavy = 4)."
 Option Required,Y/N,,,,,,,,,No,9,Yes or No.
-Changes per week,Number,per week,,,Variable,,1; 2; 3; 5; 7,,,3,3,Listed numbers.
+Changes per week,Number,per week,,,Variable,,1; 2; 3; 5; 7,Ascending,,3,3,Listed numbers.
 
 [PRODUCTS]
 Product,Description,Link,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Exudate level Lower,Exudate level Upper,Exudate level Weight,Option Required Value,Option Required Weight,Changes per week Lower,Changes per week Upper,Changes per week Weight
