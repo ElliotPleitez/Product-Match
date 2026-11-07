@@ -575,14 +575,15 @@ function renderMatch(){
   view.querySelectorAll('input[data-in]').forEach(el => {
     el.addEventListener('input', () => {
       const id = el.dataset.in, v = roundIn(P(id), num(el.value));
+      if (v == null) return;          // empty box leaves the current value unchanged
       syncSlider(id, v); setInput(id, v);
     });
-    el.addEventListener('change', () => { const v = S.inputs[el.dataset.in]; el.value = v == null ? '' : v; });
+    el.addEventListener('change', () => { if (num(el.value) != null) el.value = S.inputs[el.dataset.in]; });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
   });
   view.querySelectorAll('[data-dots]').forEach(b => b.onclick = () => {
     const m = view.querySelector(`[data-man="${b.dataset.dots}"]`), open = m.classList.toggle('open');
-    if (open) m.querySelector('input').focus();
+    if (open) { const i = m.querySelector('input'); i.value = ''; i.focus(); }   // start with a clear box
   });
   view.querySelectorAll('[data-done]').forEach(b => b.onclick = () => view.querySelector(`[data-man="${b.dataset.done}"]`).classList.remove('open'));
   // Yes / No radio buttons (tap the selected one again to clear it)
@@ -631,7 +632,7 @@ function inputCard(p){
     <div class="ends"><span>${fmt(sp.lo)}</span><span class="val" data-val="${p.id}">${v == null ? '—' : fmt(v)}</span><span>${fmt(sp.hi)}</span></div>
     <div class="bot"><span class="xsmall" data-hint="${p.id}"></span><span class="spacer"></span><span class="xsmall muted">${esc(p.unit)}</span>
       <button class="dots" data-dots="${p.id}" aria-label="Enter ${esc(p.name)} manually">⋯</button></div>
-    <div class="manual" data-man="${p.id}"><input type="number" step="${RES[p.type] || 'any'}" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>
+    <div class="manual" data-man="${p.id}"><input type="number" step="${RES[p.type] || 'any'}" data-in="${p.id}" value="" placeholder="Enter value" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>
   </div>`;
 }
 function updateMatch(){
