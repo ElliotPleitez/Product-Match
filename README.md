@@ -32,10 +32,12 @@ All changes, inputs and weights are saved automatically on the device.
 
 ## Parameter types
 
-- **Length – cm:** values to the nearest 0.1 cm.
-- **Percent – %:** whole percent; slider spans 0–100 unless an allowable range is entered.
-- **Yes / No:** drop-down on the Match screen; each product is set to Yes, No or Either.
-- **Number:** custom units.
+Selected from the Type drop-down in the parameter editor:
+- **cm:** values to the nearest 0.1 cm.
+- **%:** whole percent; range defaults to 0–100 unless an allowable range is entered.
+- **Y/N:** drop-down on the Match screen; each product is set to Yes, No or Either.
+
+The Match-screen slider has one position per whole unit of the range (0–1 = 2 positions, 1–3 = 3 positions). Non-whole spans are divided evenly so both ends are reachable. Typed values keep the type's accuracy.
 
 ## Weights and relevance
 
@@ -54,6 +56,6 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 ## CSV format
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
-- Parameters: Name, Type (Number / Length (cm) / Percent (%) / Yes/No), Unit, Range Min, Range Max, Weight, Description.
+- Parameters: Name, Type (cm / % / Y/N), Unit, Range Min, Range Max, Weight, Description.
 - Products: numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - In Excel, save as **CSV UTF-8**.

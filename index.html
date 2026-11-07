@@ -157,10 +157,10 @@ const $ = s => document.querySelector(s);
 const view = $('#view');
 // Parameter value types. dec = decimal places of accuracy.
 const TYPES = {
-  number:  {label: 'Number (custom units)'},
-  cm:      {label: 'Length – cm (0.1 cm)', unit: 'cm', dec: 1},
-  percent: {label: 'Percent – % (1%)', unit: '%', dec: 0},
-  boolean: {label: 'Yes / No'}
+  cm:      {label: 'cm (nearest 0.1)', unit: 'cm', dec: 1},
+  percent: {label: '% (whole percent)', unit: '%', dec: 0},
+  boolean: {label: 'Y/N (Yes or No)'},
+  number:  {label: 'Number (legacy)', legacy: true}
 };
 const BL = {yes: 'Yes', no: 'No', either: 'Either'};
 let S = load();
@@ -255,10 +255,12 @@ function sliderSpec(p){
     if (lo == null) lo = e ? e[0] : 0;
     if (hi == null) hi = e ? e[1] : lo + 1;
   }
-  let step, dec;
-  if (d != null) { step = Math.pow(10, -d); dec = d; }
-  if (!(hi > lo)) hi = lo + (step || Math.max(Math.abs(lo) * 0.1, 1));
-  if (d == null) { step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 200))); dec = Math.max(0, -Math.floor(Math.log10(step))); }
+  // One slider position per whole unit (0–1 = 2 positions, 1–3 = 3 positions).
+  // A span under 1 gives two positions: the two ends.
+  if (!(hi > lo)) hi = lo + 1;
+  // Steps are spread evenly so both ends are always reachable (2.5–7 = 6 positions).
+  const span = hi - lo, intervals = Math.max(1, Math.round(span)), step = span / intervals;
+  const dec = Number.isInteger(step) && Number.isInteger(lo) ? (d ?? 0) : 6;
   return {lo, hi, step, dec, src};
 }
 function refSpan(p){
@@ -527,10 +529,10 @@ function renderParams(){
   });
 }
 function editParam(id){
-  const p = id ? P(id) : {id: uid('p'), name: '', type: 'number', unit: '', min: null, max: null, weight: 5, details: ''};
+  const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, weight: 5, details: ''};
   openSheet(id ? 'Edit Parameter' : 'New Parameter', `
     <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
-    <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
+    <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).filter(([k, t]) => !t.legacy || p.type === k).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
     <div class="field" id="unitWrap"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="e.g., CFM"></div>
     <div class="field" id="rangeWrap"><label>Allowable range (optional)</label>
       <div class="pair"><input id="fMin" type="number" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${plain(p.max)}" placeholder="Maximum"></div>
@@ -564,7 +566,7 @@ function editParam(id){
     () => {
       const apply = () => {
         const type = $('#fType').value, t = TYPES[type];
-        $('#unitWrap').style.display = type === 'boolean' ? 'none' : '';
+        $('#unitWrap').style.display = type === 'number' ? '' : 'none';
         $('#rangeWrap').style.display = type === 'boolean' ? 'none' : '';
         const u = $('#fUnit');
         if (t.unit) { u.value = t.unit; u.disabled = true; } else { if (u.disabled) u.value = ''; u.disabled = false; }
@@ -573,6 +575,7 @@ function editParam(id){
         $('#rangeNote').textContent = type === 'percent' ? 'Values are whole percent. Leave blank for 0 – 100.'
           : type === 'cm' ? 'Values are in cm to the nearest 0.1.'
           : 'Inputs outside this range are flagged. The range also sets the slider span.';
+        if (type !== 'boolean') $('#rangeNote').textContent += ' The slider moves in steps of 1 across this range.';
       };
       $('#fType').onchange = apply; apply();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
@@ -723,14 +726,14 @@ function renderData(){
 
 /* ======================= CSV ======================= */
 // [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Weight, Description
-//   Type: Number | Length (cm) | Percent (%) | Yes/No
+//   Type: cm | % | Y/N   (Number accepted for older files)
 // [PRODUCTS]   Product, Notes, then per parameter:
 //   numeric: "<Name> Lower", "<Name> Upper";  Yes/No: "<Name> Value" (Yes / No / Either)
 //   and "<Name> Weight" (0 = not relevant; blank = parameter default)
-const TYPE_CSV = {number: 'Number', cm: 'Length (cm)', percent: 'Percent (%)', boolean: 'Yes/No'};
+const TYPE_CSV = {number: 'Number', cm: 'cm', percent: '%', boolean: 'Y/N'};
 function parseType(t, unit){
   const l = String(t || '').toLowerCase(), u = String(unit || '').trim().toLowerCase();
-  if (l.includes('yes') || l.includes('bool')) return 'boolean';
+  if (l.includes('yes') || l.includes('bool') || l.includes('y/n')) return 'boolean';
   if (l.includes('percent') || l.includes('%')) return 'percent';
   if (l.includes('cm') || l.includes('length')) return 'cm';
   if (!l) { if (u === 'cm') return 'cm'; if (u === '%') return 'percent'; }
@@ -869,16 +872,15 @@ $('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (type
 
 /* ======================= SAMPLE DATA ======================= */
 function sample(){
-  const defs = [['Airflow', 'number', 'CFM', 500, 25000, 8, 'Design supply airflow.'], ['External Static Pressure', 'number', 'in. w.c.', 0, 8, 6, 'External static pressure at design airflow.'],
-    ['Cooling Capacity', 'number', 'MBH', 10, 600, 8, 'Total cooling capacity at design conditions.'], ['Sound Power', 'number', 'dBA', 50, 90, 4, 'Maximum discharge sound power level.'],
-    ['Operating Weight', 'number', 'lb', 200, 6000, 3, 'Operating weight for structural coordination.']];
-  const params = defs.map(d => ({id: uid('p'), name: d[0], type: d[1], unit: d[2], min: d[3], max: d[4], weight: d[5], details: d[6]}));
-  const rows = [['Unit AH-06', 'Compact horizontal', [[1200, 2400], [0.5, 1.5], [30, 60], [62, 70], [450, 600]]], ['Unit AH-10', 'Horizontal / vertical', [[2000, 4000], [0.5, 2], [50, 100], [64, 73], [600, 850]]],
-    ['Unit AH-15', 'Modular, ECM fans', [[3500, 6000], [1, 2.5], [90, 150], [66, 75], [900, 1250]]], ['Unit AH-20', 'Modular, fan array', [[5000, 8000], [1, 3], [120, 200], [67, 76], [1200, 1600]]],
-    ['Unit AH-25', 'Indoor, double-wall', [[6500, 10000], [1.5, 3.5], [160, 250], [69, 78], [1500, 2100]]], ['Unit AH-30', 'Outdoor rated', [[8000, 12000], [1.5, 4], [200, 300], [70, 80], [2000, 2800]]],
-    ['Unit AH-40', 'Custom casing', [[10000, 16000], [2, 5], [260, 400], [72, 82], [2600, 3600]]], ['Unit AH-50', 'Custom, fan array', [[14000, 20000], [2, 6], [340, 500], [74, 84], [3300, 4500]]]];
-  const products = rows.map(r => ({id: uid('r'), name: r[0], notes: r[1], ranges: Object.fromEntries(params.map((p, i) => [p.id, r[2][i]])), flags: {}, rel: {}}));
-  return {title: 'Air Handling Unit Selector', parameters: params, products, inputs: {}, tab: null, selectedId: null, lastExport: null};
+  const defs = [['Length', 'cm', 0, 30, 8, 'Measured to the nearest 0.1 cm.'], ['Coverage', 'percent', 0, 100, 6, 'Whole percent.'], ['Option Required', 'boolean', null, null, 9, 'Yes or No.']];
+  const params = defs.map(d => ({id: uid('p'), name: d[0], type: d[1], unit: TYPES[d[1]].unit || '', min: d[2], max: d[3], weight: d[4], details: d[5]}));
+  const rows = [['Product A', 'Example only', [2, 10.5], [0, 40], 'no', {}], ['Product B', 'Example only', [5, 20], [30, 100], 'either', {}],
+    ['Product C', 'Example only', [1, 15], [10, 60], 'yes', {2: {on: false, w: null}, 0: {on: true, w: 3}}]];
+  const products = rows.map(r => {
+    const rel = {}; Object.entries(r[5]).forEach(([i, v]) => rel[params[i].id] = v);
+    return {id: uid('r'), name: r[0], notes: r[1], ranges: {[params[0].id]: r[2], [params[1].id]: r[3]}, flags: {[params[2].id]: r[4]}, rel};
+  });
+  return {title: 'Example Selector', parameters: params, products, inputs: {}, tab: null, selectedId: null, lastExport: null};
 }
 
 /* ======================= START ======================= */
