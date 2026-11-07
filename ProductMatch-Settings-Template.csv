@@ -4,7 +4,7 @@ Title,Example Selector - replace with project data
 [PARAMETERS]
 Name,Type,Unit,Range Min,Range Max,Weight,Description
 Length,cm,cm,0,30,8,Measured to the nearest 0.1 cm.
-Coverage,%,%,0,100,6,Whole percent.
+Coverage,%,%,0,100,6,Set in 25% increments.
 Option Required,Y/N,,,,9,Yes or No.
 
 [PRODUCTS]

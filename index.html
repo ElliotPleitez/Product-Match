@@ -53,6 +53,34 @@ select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var
 .pfield .offnote{display:none;margin-top:6px}
 .pfield.off .offnote{display:block}
 .chip.na b{color:var(--gray)}
+/* uniform list cards: ▲▼ left, content middle, Duplicate / Delete right */
+.lcard{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:stretch}
+.mv,.acts{display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+.mv button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font-size:15px;cursor:pointer}
+.ltitle{display:block;font-size:16px;line-height:1.25;overflow-wrap:anywhere}
+.acts button{font:inherit;font-size:12px;padding:8px 9px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer;white-space:nowrap}
+.acts .danger{color:var(--bad)}
+.mv button:disabled{opacity:.3}
+.lbody{cursor:pointer;min-width:0}
+.listnote{font-size:12px;color:var(--muted);margin:2px 4px 10px}
+/* collapsible sections */
+h2.ctl{cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;align-items:center}
+.caret{display:inline-block;width:14px;transition:transform .2s ease;margin-right:4px}
+section.collapsed .caret{transform:rotate(-90deg)}
+section.collapsed .sec-body{display:none}
+/* effects */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 3px transparent}}
+main.anim>*{animation:fadeUp .25s ease both}
+main.anim>*:nth-child(2){animation-delay:.04s}main.anim>*:nth-child(3){animation-delay:.08s}main.anim>*:nth-child(4){animation-delay:.12s}
+.sheet:not(.hidden){animation:fadeIn .2s ease}
+.sheet:not(.hidden) .sheet-card{animation:slideUp .28s cubic-bezier(.2,.8,.2,1)}
+.flash{animation:flash 1s ease}
+button{transition:transform .08s ease}
+button:active:not(:disabled){transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 .btn{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--accent);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.danger{color:var(--bad)}
@@ -364,20 +392,92 @@ function issues(){
   return out;
 }
 
-/* ======================= NAVIGATION ======================= */
-function setTab(tab){
-  S.tab = tab; save();
-  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+/* ======================= NAVIGATION & EFFECTS ======================= */
+const RENDER = () => ({match: renderMatch, params: renderParams, products: renderProducts, data: renderData})[S.tab];
+const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function updateHeader(){
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('#title').textContent = S.title || 'Product Match';
   document.title = S.title || 'Product Match';
   $('#subtitle').textContent = `${S.parameters.length} parameters · ${S.products.length} products`;
+}
+// Switching tabs: start at the top with a fade-in.
+function setTab(tab){
+  S.tab = tab; save(); updateHeader();
   window.scrollTo(0, 0);
-  ({match: renderMatch, params: renderParams, products: renderProducts, data: renderData})[tab]();
+  view.onclick = null; view.classList.remove('anim'); void view.offsetWidth; view.classList.add('anim');
+  RENDER()();
+  clearTimeout(view._a); view._a = setTimeout(() => view.classList.remove('anim'), 450);
+}
+// Positions of list cards, used to keep the screen still and animate reordering.
+function snapshot(){ const m = {}; view.querySelectorAll('[data-card]').forEach(el => m[el.dataset.card] = el.getBoundingClientRect().top); return m; }
+// Re-render the current tab in place: no jump to the top. The card `keepId` stays where it was on screen.
+function refresh(keepId, snap){
+  snap = snap || snapshot();
+  view.onclick = null; RENDER()(); updateHeader();
+  const keep = keepId && view.querySelector(`[data-card="${keepId}"]`);
+  if (keep && snap[keepId] != null) window.scrollBy(0, keep.getBoundingClientRect().top - snap[keepId]);
+  if (!reduceMotion()) view.querySelectorAll('[data-card]').forEach(el => {
+    const old = snap[el.dataset.card];
+    if (old == null) return;
+    const d = old - el.getBoundingClientRect().top;
+    if (Math.abs(d) > 1) el.animate([{transform: `translateY(${d}px)`}, {transform: 'none'}], {duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)'});
+  });
+  if (keep) { keep.classList.remove('flash'); void keep.offsetWidth; keep.classList.add('flash'); }
+  return keep;
+}
+// After saving an editor: stay in place; scroll a new item into view.
+function afterSave(id, isNew){
+  const el = refresh(id);
+  if (isNew && el) el.scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center'});
+}
+function moveItem(arr, i, dir, id){
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  const snap = snapshot();
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  save(); refresh(id, snap);
+}
+// Uniform, collapsible section (tap the heading to collapse or expand; remembered).
+function section(key, title, action, body, h2id){
+  const c = S.collapsed && S.collapsed[key];
+  return `<section class="${c ? 'collapsed' : ''}" data-section="${key}">
+    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2>${action || ''}</div>
+    <div class="sec-body">${body}</div></section>`;
+}
+function slide(sec, closing){
+  const body = sec.querySelector('.sec-body');
+  if (reduceMotion()) { sec.classList.toggle('collapsed', closing); return; }
+  if (!closing) sec.classList.remove('collapsed');
+  const h = body.scrollHeight;
+  body.style.overflow = 'hidden';
+  const a = body.animate(closing ? [{height: h + 'px', opacity: 1}, {height: '0px', opacity: 0}] : [{height: '0px', opacity: 0}, {height: h + 'px', opacity: 1}], {duration: 220, easing: 'ease'});
+  a.onfinish = () => { body.style.overflow = ''; if (closing) sec.classList.add('collapsed'); };
 }
 document.addEventListener('click', e => {
+  const c = e.target.closest('[data-collapse]');
+  if (c) {
+    const sec = c.closest('section'), closing = !sec.classList.contains('collapsed');
+    S.collapsed = S.collapsed || {}; S.collapsed[c.dataset.collapse] = closing; save();
+    slide(sec, closing); return;
+  }
   const t = e.target.closest('[data-tab],[data-go]');
   if (t) setTab(t.dataset.tab || t.dataset.go);
 });
+// Shared list card used by the Parameters and Products tabs.
+function listCard(id, i, n, title, meta, metaWarn, desc, chips){
+  return `<div class="card lcard" data-card="${id}">
+    <div class="mv"><button data-act="up" data-id="${id}" ${i ? '' : 'disabled'} aria-label="Move up">▲</button><button data-act="down" data-id="${id}" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">▼</button></div>
+    <div class="lbody" data-act="edit" data-id="${id}">
+      <b class="ltitle">${esc(title)}</b>
+      ${meta ? `<div class="xsmall ${metaWarn ? 'warn-text' : 'muted'}">${meta}</div>` : ''}
+      ${desc ? `<div class="small muted clamp">${esc(desc)}</div>` : ''}
+      <div class="chips">${chips}</div>
+    </div>
+    <div class="acts"><button data-act="dup" data-id="${id}">Duplicate</button><button class="danger" data-act="del" data-id="${id}">Delete</button></div>
+  </div>`;
+}
+const chip = (label, val, cls = '') => `<div class="chip ${cls}"><span class="muted">${label}</span><b>${val}</b></div>`;
 
 /* ======================= MATCH TAB ======================= */
 function renderMatch(){
@@ -388,12 +488,11 @@ function renderMatch(){
       <button class="btn" data-go="data">Import CSV</button></div>`;
     return;
   }
-  view.innerHTML = `
-    <section><div class="sec-h"><h2>Input Parameters</h2><button class="link" id="clearIn">Clear inputs</button></div>
-      <div class="grid">${S.parameters.map(inputCard).join('')}</div></section>
-    <section><h2>Result</h2><div id="result"></div></section>
-    <section><h2 id="listTitle">All Products</h2><div id="list"></div>
-      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div></section>`;
+  view.innerHTML =
+    section('m-inputs', 'Input Parameters', '<button class="link" id="clearIn">Clear inputs</button>', `<div class="grid">${S.parameters.map(inputCard).join('')}</div>`) +
+    section('m-result', 'Result', '', '<div id="result"></div>') +
+    section('m-list', 'All Products', '', `<div id="list"></div>
+      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div>`, 'listTitle');
   // Typed numeric value (rounded to the parameter's accuracy) -> slider
   view.querySelectorAll('input[data-in]').forEach(el => {
     el.addEventListener('input', () => {
@@ -488,7 +587,7 @@ function updateMatch(){
     box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.selectedId = b.dataset.pick; save(); updateMatch(); });
   }
   const scored = act.length && anyRel;
-  $('#listTitle').textContent = scored ? 'All Products – Ranked by Match' : 'All Products';
+  $('#listTitle .ttl').textContent = scored ? 'All Products – Ranked by Match' : 'All Products';
   $('#list').innerHTML = res.map((r, i) => {
     const sc = r.score >= 95 ? 'var(--good)' : r.score >= 60 ? 'var(--warn)' : 'var(--bad)';
     const chips = S.parameters.map(p => {
@@ -536,38 +635,43 @@ function fitRow(p, f){
 
 /* ======================= PARAMETERS TAB ======================= */
 function renderParams(){
-  view.innerHTML = `
-    <section><h2>Selector Title</h2><div class="card"><input id="titleIn" value="${esc(S.title)}" placeholder="Title"></div></section>
-    <section><div class="sec-h"><h2>Parameters</h2><button class="btn primary" id="addP">+ Add</button></div>
-      ${S.parameters.length ? S.parameters.map((p, i) => `
-        <div class="card item" data-edit="${p.id}">
-          <div class="row"><b>${esc(p.name)}</b><span class="muted small">${esc(p.unit)}</span><span class="spacer"></span><span class="pill">Weight: ${p.weight}</span></div>
-          <div class="small muted">${esc(TYPES[p.type].label)}${isBool(p) ? '' : ` · Allowable: ${fmt(p.min)} – ${fmt(p.max)}`}</div>
-          ${p.details ? `<div class="small muted clamp">${esc(p.details)}</div>` : ''}
-          <div class="item-actions"><button data-up="${p.id}" ${i ? '' : 'disabled'}>▲ Move up</button><button data-down="${p.id}" ${i < S.parameters.length - 1 ? '' : 'disabled'}>▼ Move down</button><button class="danger" data-del="${p.id}">Delete</button></div>
-        </div>`).join('') : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`}
-      <p class="xsmall muted" style="margin:4px">The order here sets the order of inputs on the Match tab and fields in the product editor. Weight (0–10) is the default for every product. On the Products tab each parameter can be marked not relevant (weight 0) or given its own weight for that product.</p>
-    </section>
-    ${S.parameters.length ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : ''}`;
-  $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; };
+  const n = S.parameters.length;
+  const cards = n ? S.parameters.map((p, i) => listCard(p.id, i, n, p.name, '', false, p.details,
+      chip('Type', esc(TYPES[p.type].label.split(' ')[0])) +
+      (isBool(p) ? chip('Values', 'Yes / No') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`)) +
+      chip('Weight', p.weight))).join('')
+    : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
+  view.innerHTML = section('params', 'Parameters', '<button class="btn primary" id="addP">+ Add</button>',
+      `${n ? '<p class="listnote">Tap a card to edit. ▲ ▼ reorder; the order is used on the Match tab and in the product editor.</p>' : ''}${cards}
+       <p class="listnote">Weight (0–10) is the default for every product. On the Products tab each parameter can be marked not relevant (weight 0) or given its own weight for that product.</p>`) +
+    (n ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : '');
   $('#addP').onclick = () => editParam(null);
-  view.querySelectorAll('[data-edit]').forEach(el => el.onclick = e => {
-    const b = e.target.closest('button');
-    if (b) {
-      e.stopPropagation();
-      const id = b.dataset.up || b.dataset.down || b.dataset.del, i = S.parameters.findIndex(p => p.id === id);
-      if (b.dataset.del) {
-        if (!confirm(`Delete "${S.parameters[i].name}"? Its values will be removed from all products.`)) return;
-        S.parameters.splice(i, 1);
-        S.products.forEach(pr => { delete pr.ranges[id]; delete pr.flags[id]; delete pr.rel[id]; });
-        delete S.inputs[id];
-      } else {
-        const j = b.dataset.up ? i - 1 : i + 1; [S.parameters[i], S.parameters[j]] = [S.parameters[j], S.parameters[i]];
-      }
-      save(); setTab('params'); return;
+  view.onclick = e => {
+    const t = e.target.closest('[data-act]'); if (!t) return;
+    const id = t.dataset.id, i = S.parameters.findIndex(p => p.id === id), act = t.dataset.act;
+    if (act === 'edit') return editParam(id);
+    if (act === 'up' || act === 'down') return moveItem(S.parameters, i, act === 'up' ? -1 : 1, id);
+    if (act === 'dup') {
+      const src = S.parameters[i], c = JSON.parse(JSON.stringify(src)); c.id = uid('p');
+      let nm = src.name + ' (copy)', k = 2;
+      while (S.parameters.some(x => x.name.toLowerCase() === nm.toLowerCase())) nm = `${src.name} (copy ${k++})`;
+      c.name = nm; S.parameters.splice(i + 1, 0, c);
+      S.products.forEach(pr => {
+        if (pr.ranges[src.id]) pr.ranges[c.id] = [...pr.ranges[src.id]];
+        if (pr.flags[src.id]) pr.flags[c.id] = pr.flags[src.id];
+        if (pr.rel[src.id]) pr.rel[c.id] = {...pr.rel[src.id]};
+      });
+      save(); return afterSave(c.id, true);
     }
-    editParam(el.dataset.edit);
-  });
+    if (act === 'del') {
+      if (!confirm(`Delete "${S.parameters[i].name}"? Its values will be removed from all products.`)) return;
+      const snap = snapshot();
+      S.parameters.splice(i, 1);
+      S.products.forEach(pr => { delete pr.ranges[id]; delete pr.flags[id]; delete pr.rel[id]; });
+      delete S.inputs[id];
+      save(); refresh(null, snap);
+    }
+  };
 }
 function editParam(id){
   const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, weight: 5, details: ''};
@@ -603,7 +707,7 @@ function editParam(id){
         if (typeof S.inputs[p.id] === 'number') S.inputs[p.id] = roundP(p, S.inputs[p.id]);
       }
       if (!id) S.parameters.push(p);
-      save(); setTab('params');
+      save(); afterSave(p.id, !id);
       const nc = nonConforming(); if (nc) toast(`${nc} product value(s) no longer match a parameter. See Data ▸ Review.`);
     },
     () => {
@@ -631,38 +735,39 @@ function editParam(id){
 /* ======================= PRODUCTS TAB ======================= */
 function renderProducts(){
   if (!S.parameters.length) {
-    view.innerHTML = `<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as allowable values for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`;
+    view.innerHTML = section('products', 'Products', '', `<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as allowable values for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`);
     return;
   }
-  view.innerHTML = `<section><div class="sec-h"><h2>Products</h2><button class="btn primary" id="addPr">+ Add</button></div>
-    ${S.products.length ? S.products.map((pr, pi) => {
+  const n = S.products.length;
+  const cards = n ? S.products.map((pr, i) => {
       const relP = S.parameters.filter(p => wOf(pr, p) > 0);
-      const done = relP.filter(p => isBool(p) ? pr.flags[p.id] : rng(pr, p)).length;
-      const na = S.parameters.length - relP.length;
-      return `<div class="card item" data-edit="${pr.id}">
-        <div class="row"><b>${esc(pr.name)}</b><span class="spacer"></span><span class="xsmall ${done === relP.length ? 'muted' : 'warn-text'}">${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}</span></div>
-        ${pr.notes ? `<div class="small muted clamp">${esc(pr.notes)}</div>` : ''}
-        <div class="chips">${S.parameters.map(p => {
-          const rel = relOf(pr, p), on = rel.on && rel.w > 0;
-          let val; if (!on) val = 'N/A'; else if (isBool(p)) val = pr.flags[p.id] ? BL[pr.flags[p.id]] : '—'; else { const r = rng(pr, p); val = r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'; }
-          return `<div class="chip ${on ? '' : 'na'}"><span class="muted">${esc(p.name)}${on ? ' · W' + rel.w : ''}</span><b>${val}</b></div>`; }).join('')}</div>
-        <div class="item-actions"><button data-up="${pr.id}" ${pi ? '' : 'disabled'}>▲ Move up</button><button data-down="${pr.id}" ${pi < S.products.length - 1 ? '' : 'disabled'}>▼ Move down</button><button data-dup="${pr.id}">Duplicate</button><button class="danger" data-del="${pr.id}">Delete</button></div>
-      </div>`; }).join('') : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`}
-    </section>
-    ${configured() ? `<button class="btn primary block" data-go="match">Go to Match →</button>` : ''}`;
+      const done = relP.filter(p => isBool(p) ? pr.flags[p.id] : rng(pr, p)).length, na = S.parameters.length - relP.length;
+      const chips = S.parameters.map(p => {
+        const rel = relOf(pr, p), on = rel.on && rel.w > 0;
+        let val; if (!on) val = 'N/A'; else if (isBool(p)) val = pr.flags[p.id] ? BL[pr.flags[p.id]] : '—'; else { const r = rng(pr, p); val = r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'; }
+        return chip(esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na');
+      }).join('');
+      return listCard(pr.id, i, n, pr.name, `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}`, done !== relP.length, pr.notes, chips);
+    }).join('')
+    : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`;
+  view.innerHTML = section('products', 'Products', '<button class="btn primary" id="addPr">+ Add</button>',
+      `${n ? '<p class="listnote">Tap a card to edit. ▲ ▼ reorder; the order is used when products are listed and to rank ties.</p>' : ''}${cards}`) +
+    (configured() ? `<button class="btn primary block" data-go="match">Go to Match →</button>` : '');
   $('#addPr').onclick = () => editProduct(null);
-  view.querySelectorAll('[data-edit]').forEach(el => el.onclick = e => {
-    const b = e.target.closest('button');
-    if (b) {
-      e.stopPropagation();
-      const id = b.dataset.up || b.dataset.down || b.dataset.dup || b.dataset.del, i = S.products.findIndex(p => p.id === id);
-      if (b.dataset.up || b.dataset.down) { const j = b.dataset.up ? i - 1 : i + 1; [S.products[i], S.products[j]] = [S.products[j], S.products[i]]; }
-      else if (b.dataset.del) { if (!confirm(`Delete "${S.products[i].name}"?`)) return; S.products.splice(i, 1); }
-      else { const c = JSON.parse(JSON.stringify(S.products[i])); c.id = uid('r'); c.name += ' (copy)'; S.products.splice(i + 1, 0, c); }
-      save(); setTab('products'); return;
+  view.onclick = e => {
+    const t = e.target.closest('[data-act]'); if (!t) return;
+    const id = t.dataset.id, i = S.products.findIndex(p => p.id === id), act = t.dataset.act;
+    if (act === 'edit') return editProduct(id);
+    if (act === 'up' || act === 'down') return moveItem(S.products, i, act === 'up' ? -1 : 1, id);
+    if (act === 'dup') {
+      const c = JSON.parse(JSON.stringify(S.products[i])); c.id = uid('r'); c.name += ' (copy)';
+      S.products.splice(i + 1, 0, c); save(); return afterSave(c.id, true);
     }
-    editProduct(el.dataset.edit);
-  });
+    if (act === 'del') {
+      if (!confirm(`Delete "${S.products[i].name}"?`)) return;
+      const snap = snapshot(); S.products.splice(i, 1); save(); refresh(null, snap);
+    }
+  };
 }
 function editProduct(id){
   const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', ranges: {}, flags: {}, rel: {}};
@@ -711,7 +816,7 @@ function editProduct(id){
       }
       Object.assign(pr, {name, notes: $('#fNotes').value.trim(), ranges, flags, rel});
       if (!id) S.products.push(pr);
-      save(); setTab('products');
+      save(); afterSave(pr.id, !id);
     },
     () => {
       const check = p => {
@@ -745,22 +850,21 @@ function editProduct(id){
 /* ======================= DATA TAB ======================= */
 function renderData(){
   const list = issues();
-  view.innerHTML = `
-    <section><h2>Settings File (CSV)</h2><div class="card">
+  view.innerHTML =
+    section('d-settings', 'Settings', '', `<div class="card"><div class="field" style="margin:0"><label>Selector title</label><input id="titleIn" value="${esc(S.title)}" placeholder="Title"></div></div>`) +
+    section('d-csv', 'Settings File (CSV)', '', `<div class="card">
       <p class="small muted" style="margin-top:0">Import or export all parameters, types, weights, relevance and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
       <div class="pair"><button class="btn" id="impBtn" style="flex:1">Import CSV</button><button class="btn primary" id="expBtn" style="flex:1" ${S.parameters.length ? '' : 'disabled'}>Export CSV</button></div>
-      <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p>
-    </div></section>
-    <section><h2>Review</h2><div class="card">
+      <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p></div>`) +
+    section('d-review', 'Review', '', `<div class="card">
       ${list.length ? `<div class="small warn-text" style="margin-bottom:6px"><b>${list.length} item(s) need attention</b></div>${list.map(t => `<div class="issue">${esc(t)}</div>`).join('')}`
         : `<div class="small c-within">No inconsistencies found.</div>`}
-      ${nonConforming() ? `<button class="btn primary block" id="fixBtn" style="margin-top:10px">Apply parameter resolution and range to products (${nonConforming()})</button>` : ''}
-    </div></section>
-    <section><h2>Other</h2><div class="card">
+      ${nonConforming() ? `<button class="btn primary block" id="fixBtn" style="margin-top:10px">Apply parameter resolution and range to products (${nonConforming()})</button>` : ''}</div>`) +
+    section('d-other', 'Other', '', `<div class="card">
       <button class="btn block" id="sampleBtn">Load sample data</button>
       <button class="btn danger block" id="resetBtn">Erase all data</button>
-      <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p>
-    </div></section>`;
+      <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p></div>`);
+  $('#titleIn').oninput = e => { S.title = e.target.value; save(); updateHeader(); };
   $('#impBtn').onclick = () => $('#fileIn').click();
   if ($('#fixBtn')) $('#fixBtn').onclick = () => {
     if (!confirm('Round product values to each parameter\'s resolution and limit them to its allowable range? Export a CSV first if you want to keep the current values.')) return;
@@ -926,7 +1030,7 @@ $('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (type
 
 /* ======================= SAMPLE DATA ======================= */
 function sample(){
-  const defs = [['Length', 'cm', 0, 30, 8, 'Measured to the nearest 0.1 cm.'], ['Coverage', 'percent', 0, 100, 6, 'Whole percent.'], ['Option Required', 'boolean', null, null, 9, 'Yes or No.']];
+  const defs = [['Length', 'cm', 0, 30, 8, 'Measured to the nearest 0.1 cm.'], ['Coverage', 'percent', 0, 100, 6, 'Set in 25% increments.'], ['Option Required', 'boolean', null, null, 9, 'Yes or No.']];
   const params = defs.map(d => ({id: uid('p'), name: d[0], type: d[1], unit: TYPES[d[1]].unit || '', min: d[2], max: d[3], weight: d[4], details: d[5]}));
   const rows = [['Product A', 'Example only', [2, 10.5], [0, 50], 'no', {}], ['Product B', 'Example only', [5, 20], [25, 100], 'either', {}],
     ['Product C', 'Example only', [1, 15], [0, 75], 'yes', {2: {on: false, w: null}, 0: {on: true, w: 3}}]];

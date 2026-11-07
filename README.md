@@ -26,7 +26,7 @@ Public repository note: the app **code** is publicly viewable. Your parameters, 
 - **Parameters tab:** name, units, allowable range, weight (0–10) and description for each parameter.
 - **Products tab:** each product's lower and upper value for every parameter.
 - **Match tab:** inputs and weight sliders at the top, best match in the center, all products ranked below.
-- **Data tab:** CSV import/export (share sheet ▸ Save to Files, iCloud Drive or OneDrive), consistency review, sample data.
+- **Data tab:** selector title, CSV import/export (share sheet ▸ Save to Files, iCloud Drive or OneDrive), consistency review, sample data.
 
 All changes, inputs and weights are saved automatically on the device.
 
@@ -42,7 +42,7 @@ The Match-screen slider moves at the type's resolution: 0.1 cm steps for cm, 25%
 
 Product values follow the same resolution and stay within the parameter's allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's resolution and range.
 
-Parameters and products can be reordered with Move up / Move down. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
+Parameters and products can be reordered with the ▲ / ▼ buttons on the left of each card; Duplicate and Delete are on the right. The screen stays in place while reordering. Section headings can be tapped to collapse or expand them. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
 
 ## Weights and relevance
 
