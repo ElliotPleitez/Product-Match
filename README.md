@@ -40,6 +40,8 @@ Selected from the Type drop-down in the parameter editor:
 
 The Match-screen slider moves at the type's resolution: 0.1 cm steps for cm, 25% steps for %, steps of 1 for Number. Typed inputs are rounded to the same resolution.
 
+Product values follow the same resolution and stay within the parameter's allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's resolution and range.
+
 Parameters and products can be reordered with Move up / Move down. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
 
 ## Weights and relevance

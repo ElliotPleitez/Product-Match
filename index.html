@@ -198,7 +198,31 @@ const P = id => S.parameters.find(x => x.id === id);
 const isBool = p => p.type === 'boolean';
 const prec = p => TYPES[p.type] && TYPES[p.type].dec != null ? TYPES[p.type].dec : null;
 function roundP(p, v){ if (v == null) return null; const d = prec(p); return d == null ? v : Number(v.toFixed(d)); }
-// Design inputs snap to the type's resolution (0.1 cm, 25%).
+// Allowable limits (percent defaults to 0–100).
+function limits(p){ return [p.min ?? (p.type === 'percent' ? 0 : null), p.max ?? (p.type === 'percent' ? 100 : null)]; }
+// Product values: snap to resolution, then keep within the allowable range.
+function conformValue(p, v){
+  if (v == null || isBool(p)) return v;
+  let x = roundIn(p, v); const [lo, hi] = limits(p);
+  if (lo != null && x < lo) x = roundIn(p, Math.ceil(lo / (RES[p.type] || 1) - 1e-9) * (RES[p.type] || 1));
+  if (hi != null && x > hi) x = roundIn(p, Math.floor(hi / (RES[p.type] || 1) + 1e-9) * (RES[p.type] || 1));
+  return x;
+}
+const conforms = (p, v) => v == null || conformValue(p, v) === v;
+function ruleText(p){
+  const r = p.type === 'cm' ? 'Steps of 0.1 cm' : p.type === 'percent' ? 'Steps of 25%' : p.type === 'number' ? 'Whole numbers' : 'Any value';
+  const [lo, hi] = limits(p);
+  return lo != null || hi != null ? `${r} within ${fmt(lo)} – ${fmt(hi)}` : r;
+}
+function nonConforming(){
+  let n = 0;
+  S.products.forEach(pr => S.parameters.forEach(p => { if (isBool(p)) return; const r = pr.ranges[p.id]; if (r && (!conforms(p, r[0]) || !conforms(p, r[1]))) n++; }));
+  return n;
+}
+function conformAll(){
+  S.products.forEach(pr => S.parameters.forEach(p => { if (isBool(p)) return; const r = pr.ranges[p.id]; if (r) pr.ranges[p.id] = [conformValue(p, r[0]), conformValue(p, r[1])]; }));
+}
+// Design inputs snap to the type's resolution (0.1 cm, 25%, 1).
 function roundIn(p, v){
   if (v == null) return null;
   const r = RES[p.type];
@@ -335,8 +359,7 @@ function issues(){
     if (raw[0] == null || raw[1] == null) { out.push(`${pr.name}: no complete range for ${p.name}; this parameter scores 0% for this product.`); return; }
     if (raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
     const r = rng(pr, p);
-    if (p.min != null && r[0] < p.min) out.push(`${pr.name}: ${p.name} range extends below the allowable minimum.`);
-    if (p.max != null && r[1] > p.max) out.push(`${pr.name}: ${p.name} range extends above the allowable maximum.`);
+    if (!conforms(p, raw[0]) || !conforms(p, raw[1])) out.push(`${pr.name}: ${p.name} ${fmt(r[0])}–${fmt(r[1])} does not match the parameter (${ruleText(p).toLowerCase()}).`);
   }));
   return out;
 }
@@ -581,6 +604,7 @@ function editParam(id){
       }
       if (!id) S.parameters.push(p);
       save(); setTab('params');
+      const nc = nonConforming(); if (nc) toast(`${nc} product value(s) no longer match a parameter. See Data ▸ Review.`);
     },
     () => {
       const apply = () => {
@@ -643,7 +667,8 @@ function renderProducts(){
 function editProduct(id){
   const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', ranges: {}, flags: {}, rel: {}};
   const fields = S.parameters.map(p => {
-    const rel = relOf(pr, p), d = prec(p), step = d == null ? 'any' : Math.pow(10, -d);
+    const rel = relOf(pr, p), step = RES[p.type] || 'any', [lim0, lim1] = limits(p);
+    const mm = `${lim0 != null ? `min="${lim0}"` : ''} ${lim1 != null ? `max="${lim1}"` : ''}`;
     let body;
     if (isBool(p)) {
       const f = pr.flags[p.id] || '';
@@ -652,7 +677,7 @@ function editProduct(id){
         <option value="either" ${f === 'either' ? 'selected' : ''}>Either (Yes or No)</option></select>`;
     } else {
       const r = pr.ranges[p.id] || [null, null];
-      body = `<div class="pair"><input type="number" step="${step}" data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="${step}" data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>`;
+      body = `<div class="pair"><input type="number" step="${step}" ${mm} data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="${step}" ${mm} data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>`;
     }
     return `<div class="pfield ${rel.on ? '' : 'off'}" data-pf="${p.id}">
       <div class="prow"><label class="chk"><input type="checkbox" data-rel="${p.id}" ${rel.on ? 'checked' : ''}>
@@ -679,8 +704,8 @@ function editProduct(id){
         rel[p.id] = {on, w: on ? w : (w == null ? p.weight : w)};
         if (isBool(p)) { const v = document.querySelector(`[data-bv="${p.id}"]`).value; if (v) flags[p.id] = v; }
         else {
-          const lo = roundP(p, num(document.querySelector(`[data-lo="${p.id}"]`).value));
-          const hi = roundP(p, num(document.querySelector(`[data-hi="${p.id}"]`).value));
+          const lo = conformValue(p, num(document.querySelector(`[data-lo="${p.id}"]`).value));
+          const hi = conformValue(p, num(document.querySelector(`[data-hi="${p.id}"]`).value));
           if (lo != null || hi != null) ranges[p.id] = [lo, hi];
         }
       }
@@ -696,15 +721,16 @@ function editProduct(id){
         let m = '', warn = true;
         if ((lo == null) !== (hi == null)) m = 'Enter both a lower and an upper value.';
         else if (lo != null && lo > hi) m = 'Lower value exceeds upper value.';
-        else if (lo != null && p.min != null && Math.min(lo, hi) < p.min) m = `Range extends below the allowable minimum (${fmt(p.min)}).`;
-        else if (lo != null && p.max != null && Math.max(lo, hi) > p.max) m = `Range extends above the allowable maximum (${fmt(p.max)}).`;
-        else if (p.min != null || p.max != null) { m = `Allowable: ${fmt(p.min)} – ${fmt(p.max)}`; warn = false; }
-        else if (prec(p) != null) { m = p.type === 'cm' ? 'Nearest 0.1 cm.' : 'Whole percent.'; warn = false; }
+        else { m = ruleText(p) + '.'; warn = false; }
         w.textContent = m; w.className = 'xsmall ' + (warn ? 'warn-text' : 'muted');
       };
       S.parameters.forEach(p => {
         check(p);
-        document.querySelectorAll(`[data-lo="${p.id}"],[data-hi="${p.id}"]`).forEach(i => i.oninput = () => check(p));
+        document.querySelectorAll(`[data-lo="${p.id}"],[data-hi="${p.id}"]`).forEach(i => {
+          i.oninput = () => check(p);
+          // On leaving the field, snap to the parameter's resolution and range.
+          i.onchange = () => { const v = num(i.value); if (v != null) i.value = conformValue(p, v); check(p); };
+        });
         const cb = document.querySelector(`[data-rel="${p.id}"]`);
         cb.onchange = () => {
           document.querySelector(`[data-pf="${p.id}"]`).classList.toggle('off', !cb.checked);
@@ -728,6 +754,7 @@ function renderData(){
     <section><h2>Review</h2><div class="card">
       ${list.length ? `<div class="small warn-text" style="margin-bottom:6px"><b>${list.length} item(s) need attention</b></div>${list.map(t => `<div class="issue">${esc(t)}</div>`).join('')}`
         : `<div class="small c-within">No inconsistencies found.</div>`}
+      ${nonConforming() ? `<button class="btn primary block" id="fixBtn" style="margin-top:10px">Apply parameter resolution and range to products (${nonConforming()})</button>` : ''}
     </div></section>
     <section><h2>Other</h2><div class="card">
       <button class="btn block" id="sampleBtn">Load sample data</button>
@@ -735,6 +762,10 @@ function renderData(){
       <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p>
     </div></section>`;
   $('#impBtn').onclick = () => $('#fileIn').click();
+  if ($('#fixBtn')) $('#fixBtn').onclick = () => {
+    if (!confirm('Round product values to each parameter\'s resolution and limit them to its allowable range? Export a CSV first if you want to keep the current values.')) return;
+    conformAll(); save(); renderData(); toast('Product values updated');
+  };
   $('#expBtn').onclick = exportCSV;
   $('#sampleBtn').onclick = () => {
     if ((S.parameters.length || S.products.length) && !confirm('Replace current parameters and products with sample data?')) return;
@@ -801,7 +832,7 @@ function splitBound(h){
 }
 function fromCSV(text){
   const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
-  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1;
+  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, adjusted = 0;
   const findP = name => out.parameters.find(x => x.name.toLowerCase() === name.toLowerCase());
   for (const row of rows) {
     if (row.every(x => !x.trim())) continue;
@@ -848,11 +879,12 @@ function fromCSV(text){
         const c = row[i];
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
         else if (k === 'v') { if (isBool(p)) { const b = parseBool(c); if (b) pr.flags[p.id] = b; } }
-        else if (!isBool(p)) { const r = pr.ranges[p.id] || [null, null]; r[k] = roundP(p, num(c)); pr.ranges[p.id] = r; }
+        else if (!isBool(p)) { const r = pr.ranges[p.id] || [null, null], raw = num(c); r[k] = conformValue(p, raw); if (raw != null && r[k] !== raw) adjusted++; pr.ranges[p.id] = r; }
       });
       out.products.push(pr);
     }
   }
+  if (adjusted) notes.push(`${adjusted} product value(s) were adjusted to match their parameter's resolution and range.`);
   if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Weight, Description).');
   return {data: out, notes};
 }
@@ -896,8 +928,8 @@ $('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (type
 function sample(){
   const defs = [['Length', 'cm', 0, 30, 8, 'Measured to the nearest 0.1 cm.'], ['Coverage', 'percent', 0, 100, 6, 'Whole percent.'], ['Option Required', 'boolean', null, null, 9, 'Yes or No.']];
   const params = defs.map(d => ({id: uid('p'), name: d[0], type: d[1], unit: TYPES[d[1]].unit || '', min: d[2], max: d[3], weight: d[4], details: d[5]}));
-  const rows = [['Product A', 'Example only', [2, 10.5], [0, 40], 'no', {}], ['Product B', 'Example only', [5, 20], [30, 100], 'either', {}],
-    ['Product C', 'Example only', [1, 15], [10, 60], 'yes', {2: {on: false, w: null}, 0: {on: true, w: 3}}]];
+  const rows = [['Product A', 'Example only', [2, 10.5], [0, 50], 'no', {}], ['Product B', 'Example only', [5, 20], [25, 100], 'either', {}],
+    ['Product C', 'Example only', [1, 15], [0, 75], 'yes', {2: {on: false, w: null}, 0: {on: true, w: 3}}]];
   const products = rows.map(r => {
     const rel = {}; Object.entries(r[5]).forEach(([i, v]) => rel[params[i].id] = v);
     return {id: uid('r'), name: r[0], notes: r[1], ranges: {[params[0].id]: r[2], [params[1].id]: r[3]}, flags: {[params[2].id]: r[4]}, rel};

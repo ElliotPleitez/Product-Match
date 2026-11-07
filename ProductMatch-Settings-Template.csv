@@ -9,6 +9,6 @@ Option Required,Y/N,,,,9,Yes or No.
 
 [PRODUCTS]
 Product,Notes,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Option Required Value,Option Required Weight
-Product A,Example only,2,10.5,8,0,40,6,No,9
-Product B,Example only,5,20,8,30,100,6,Either,9
-Product C,Example only - Option Required not relevant,1,15,3,10,60,6,Yes,0
+Product A,Example only,2,10.5,8,0,50,6,No,9
+Product B,Example only,5,20,8,25,100,6,Either,9
+Product C,Example only - Option Required not relevant,1,15,3,0,75,6,Yes,0
