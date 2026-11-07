@@ -37,17 +37,20 @@ Selected from the Type drop-down in the parameter editor (field order: Units, Re
 - **Text:** units plus a list of text values.
 - **Y/N:** Yes / No radio buttons on the Match screen.
 
-Listed values (Text and Number Variable): the Match slider follows the list order (top value = leftmost position). Each value is numbered by its position for scoring; **Numbering** switches between ascending (first = 1) and descending (first = highest) without changing the order. The allowable range is set by the number of listed values.
+Listed values (Text and Number Variable): the Match slider follows the list order (top value = leftmost position). Each value is numbered by its position for scoring; **Numbering** switches between ascending (first = 1) and descending (first = highest) without changing the order. The allowable range is set by the number of listed values. Number Variable has a **Score by numeric size** switch: when on, scoring uses the numbers themselves and the allowable range is the lowest to highest number.
 
-Changing the resolution redisplays the step at that resolution (never below it). Default values offer **Blank** for no default.
+**Show slider on Match** (Number and Text): when off, the tile has no slider; the value is typed (Number) or chosen by tapping a listed value.
+
+Resolution and slider step sit on one line. Step, allowable range and default are formatted to the resolution when entered. Changing the resolution re-formats them from the values as typed; any value the new resolution changes shakes and is highlighted for review, and the typed value is kept (switching back restores it). Fields that cannot be edited are grayed. Default values offer **Blank** for no default.
 
 ## Match screen
 
 - Each tile shows the name and weight, the parameter description, the value between the range ends with units beside each, and the slider at the bottom.
 - The slider always spans the allowable range. It moves from the minimum in steps of the step value and always reaches the maximum (e.g. 0–10 in steps of 3: 0, 3, 6, 9, 10). Listed values (Number Variable, Text) step through the list.
 - Tap the value above the slider to type a value. It is accepted when the field loses focus; the keyboard closes when anything other than a text field is tapped. Values outside the allowable range are accepted and shown in amber. Entries that are not numbers shake and highlight the tile.
+- The app opens with only Input Parameters expanded (also after **Reset to defaults**). Y/N options use Yes / No buttons; the selected one is filled.
 - Only parameters entered or changed on the Match screen are scored. **Reset to defaults** places the default values (shown faded) and clears the entered set; Result stays collapsed until a parameter is entered, then expands (the screen does not move) and refreshes with each change.
-- **All Products** stays collapsed until opened. Opening it moves to the top of the screen, collapses Result, shows Input Parameters as a sliding pane of two tiles, and shows the products in their own scrolling panel. Selecting a product expands Result and collapses Input Parameters. Entering or changing a parameter collapses All Products again.
+- **All Products** stays collapsed until opened. Opening it moves to the top of the screen, collapses Result, shows Input Parameters as a sliding pane of two tiles, and shows the products in their own scrolling panel. Selecting a product expands Result and collapses Input Parameters, and the selected product stays in view in the product panel. Entering or changing a parameter collapses All Products again.
 
 **Manual entry rounding** (per parameter, not used for listed values): Nearest, Round up or Round down. Applied when a value is typed on the Match screen.
 
@@ -86,7 +89,7 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 ## CSV format
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
-- Parameters: Name, Type (Number / % / Text / Y/N), Unit, Range Min, Range Max, Resolution (Number: 1 / 0.1 / 0.02 / Variable; %: 1 / 0.1 / 0.01), Step (slider step for Number and %), Values (Text values or Variable numbers, separated by semicolons), Numbering (listed values: Ascending / Descending), Rounding (Nearest / Round up / Round down), Default, Weight, Description.
+- Parameters: Name, Type (Number / % / Text / Y/N), Unit, Range Min, Range Max, Resolution (Number: 1 / 0.1 / 0.02 / Variable; %: 1 / 0.1 / 0.01), Step (slider step for Number and %), Values (Text values or Variable numbers, separated by semicolons), Numbering (listed values: Ascending / Descending / By value), Slider (Number, Text: Yes / No), Rounding (Nearest / Round up / Round down), Default, Weight, Description.
 - Products: Product, Description, Link, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Text and Number (Variable) parameters use the listed value in Lower / Upper; Y/N parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - Older files without the newer columns still import.
 - In Excel, save as **CSV UTF-8**.
