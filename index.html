@@ -159,12 +159,12 @@ const view = $('#view');
 const TYPES = {
   cm:      {label: 'cm (nearest 0.1)', unit: 'cm', dec: 1},
   percent: {label: '% (25% increments)', unit: '%', dec: 0},
-  boolean: {label: 'Y/N (Yes or No)'},
-  number:  {label: 'Number (legacy)', legacy: true}
+  number:  {label: 'Number (resolution 1)'},
+  boolean: {label: 'Y/N (Yes or No)'}
 };
 const BL = {yes: 'Yes', no: 'No', either: 'Either'};
 // Input / slider resolution per type.
-const RES = {cm: 0.1, percent: 25};
+const RES = {cm: 0.1, percent: 25, number: 1};
 const decOf = r => (String(r).split('.')[1] || '').length;
 let S = load();
 
@@ -568,6 +568,7 @@ function editParam(id){
       if (!name) return 'Enter a parameter name.';
       if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return 'A parameter with this name already exists.';
       if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
+      if (type === 'number' && (min == null || max == null)) return 'Enter both a minimum and a maximum for a Number parameter.';
       if (id && isBool(p) !== (type === 'boolean')) {
         if (!confirm('Changing between Yes/No and a numeric type clears this parameter\'s product values and current input. Continue?')) return 'Type change cancelled.';
         S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; });
@@ -592,8 +593,10 @@ function editParam(id){
         $('#fMin').step = step; $('#fMax').step = step;
         $('#rangeNote').textContent = type === 'percent' ? 'Design inputs are set in 25% increments. Leave blank for 0 – 100.'
           : type === 'cm' ? 'Values are in cm to the nearest 0.1.'
+          : type === 'number' ? 'Required. Enter the minimum and maximum for this parameter. Design inputs are whole numbers.'
           : 'Inputs outside this range are flagged. The range also sets the slider span.';
-        if (RES[type]) $('#rangeNote').textContent += type === 'cm' ? ' The slider moves in 0.1 cm steps.' : ' The slider moves in 25% steps.';
+        if (RES[type]) $('#rangeNote').textContent += type === 'cm' ? ' The slider moves in 0.1 cm steps.' : type === 'percent' ? ' The slider moves in 25% steps.' : ' The slider moves in steps of 1.';
+        $('#fUnit').placeholder = 'Optional (e.g., count, days)';
       };
       $('#fType').onchange = apply; apply();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;

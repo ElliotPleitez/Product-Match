@@ -35,9 +35,10 @@ All changes, inputs and weights are saved automatically on the device.
 Selected from the Type drop-down in the parameter editor:
 - **cm:** values to the nearest 0.1 cm.
 - **%:** design inputs in 25% increments; range defaults to 0–100 unless an allowable range is entered.
+- **Number:** user-defined minimum and maximum (required) and optional units; design inputs in whole numbers.
 - **Y/N:** drop-down on the Match screen; each product is set to Yes, No or Either.
 
-The Match-screen slider moves at the type's resolution: 0.1 cm steps for cm, 25% steps for %. Typed inputs are rounded to the same resolution.
+The Match-screen slider moves at the type's resolution: 0.1 cm steps for cm, 25% steps for %, steps of 1 for Number. Typed inputs are rounded to the same resolution.
 
 Parameters and products can be reordered with Move up / Move down. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
 
@@ -58,6 +59,6 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 ## CSV format
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
-- Parameters: Name, Type (cm / % / Y/N), Unit, Range Min, Range Max, Weight, Description.
+- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Weight, Description.
 - Products: numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - In Excel, save as **CSV UTF-8**.
