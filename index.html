@@ -40,6 +40,19 @@ input[type=range]{padding:0;border:0;background:none;accent-color:var(--accent);
 .wt{font-weight:600;color:var(--muted);white-space:nowrap;text-align:right}
 .vslider{width:100%;margin-top:8px}
 .vslider.unset{opacity:.45}
+select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:17px}
+.inp select{margin:8px 0 4px;font-size:20px;font-weight:600}
+.pfield{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.chk{display:flex;align-items:center;gap:10px;font-size:15px;cursor:pointer}
+.chk input{width:22px;height:22px;padding:0;accent-color:var(--accent);flex:none}
+.wbox{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap}
+.wbox input{width:62px;padding:6px 8px;font-size:16px;text-align:center}
+.pbody{margin-top:10px}
+.pfield.off .pbody,.pfield.off .wbox{display:none}
+.pfield .offnote{display:none;margin-top:6px}
+.pfield.off .offnote{display:block}
+.chip.na b{color:var(--gray)}
 .btn{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--accent);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.danger{color:var(--bad)}
@@ -142,15 +155,28 @@ nav.tabs button.on{color:var(--accent)}
 const KEY = 'productMatch.state.v1';
 const $ = s => document.querySelector(s);
 const view = $('#view');
+// Parameter value types. dec = decimal places of accuracy.
+const TYPES = {
+  number:  {label: 'Number (custom units)'},
+  cm:      {label: 'Length – cm (0.1 cm)', unit: 'cm', dec: 1},
+  percent: {label: 'Percent – % (1%)', unit: '%', dec: 0},
+  boolean: {label: 'Yes / No'}
+};
+const BL = {yes: 'Yes', no: 'No', either: 'Either'};
 let S = load();
 
-function blank(){ return {title:'Product Match', parameters:[], products:[], inputs:{}, tab:null, selectedId:null, lastExport:null}; }
+function blank(){ return {title: 'Product Match', parameters: [], products: [], inputs: {}, tab: null, selectedId: null, lastExport: null}; }
 function fix(s){
   s.parameters = Array.isArray(s.parameters) ? s.parameters : [];
   s.products = Array.isArray(s.products) ? s.products : [];
   s.inputs = s.inputs || {};
-  s.parameters.forEach(p => { if (p.weight == null || isNaN(p.weight)) p.weight = 5; });
-  s.products.forEach(p => { p.ranges = p.ranges || {}; });
+  s.parameters.forEach(p => {
+    if (p.weight == null || isNaN(p.weight)) p.weight = 5;
+    if (!TYPES[p.type]) p.type = 'number';
+    if (TYPES[p.type].unit) p.unit = TYPES[p.type].unit;
+    if (p.type === 'boolean') { p.unit = ''; p.min = null; p.max = null; }
+  });
+  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; });
   return s;
 }
 function load(){
@@ -165,12 +191,23 @@ function save(){
 /* ======================= UTILITIES ======================= */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const P = id => S.parameters.find(x => x.id === id);
+const isBool = p => p.type === 'boolean';
+const prec = p => TYPES[p.type] && TYPES[p.type].dec != null ? TYPES[p.type].dec : null;
+function roundP(p, v){ if (v == null) return null; const d = prec(p); return d == null ? v : Number(v.toFixed(d)); }
 function num(v){
   if (v === null || v === undefined) return null;
-  const t = String(v).trim().replace(/[,$]/g, '');
+  const t = String(v).trim().replace(/[,$%]/g, '');
   if (t === '') return null;
   const n = Number(t);
   return isFinite(n) ? n : null;
+}
+function parseBool(v){
+  const t = String(v ?? '').trim().toLowerCase();
+  if (['yes', 'y', 'true', '1'].includes(t)) return 'yes';
+  if (['no', 'n', 'false', '0'].includes(t)) return 'no';
+  if (['either', 'both', 'any', 'yes/no', 'y/n'].includes(t)) return 'either';
+  return null;
 }
 function fmt(v){
   if (v == null || isNaN(v)) return '—';
@@ -182,11 +219,21 @@ function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('sh
 const configured = () => S.parameters.length > 0 && S.products.length > 0;
 function localDate(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 
+/* ======================= RELEVANCE & WEIGHT ======================= */
+// Each product can mark a parameter relevant (with its own weight) or not relevant (weight 0).
+// A product with no entry uses the parameter's default weight.
+function relOf(pr, p){
+  const r = pr.rel && pr.rel[p.id];
+  if (!r) return {on: true, w: p.weight};
+  return {on: r.on !== false, w: r.w == null ? p.weight : r.w};
+}
+function wOf(pr, p){ const r = relOf(pr, p); return r.on ? r.w : 0; }
+
 /* ======================= SCORING ======================= */
-// 100% when the input is within the product's range. Outside it, the score falls linearly
-// with distance from the nearest limit, reaching 0% at one-half of the reference span
-// (the parameter's allowable range if entered, otherwise the span of all products).
-// Overall score = weighted average using each parameter's weight (0 = excluded).
+// Numeric: 100% when the input is within the product's range; outside it the score falls
+// linearly with distance, reaching 0% at one-half of the reference span.
+// Yes/No: 100% when the product allows the selected answer, otherwise 0%.
+// Overall = weighted average using each product's weights (0 / not relevant = excluded).
 function rng(pr, p){
   const r = pr.ranges[p.id];
   if (!r || r[0] == null || r[1] == null) return null;
@@ -194,42 +241,58 @@ function rng(pr, p){
 }
 function productExtent(p){
   let lo = Infinity, hi = -Infinity;
-  S.products.forEach(pr => { const r = rng(pr, p); if (r) { lo = Math.min(lo, r[0]); hi = Math.max(hi, r[1]); } });
+  S.products.forEach(pr => { if (wOf(pr, p) <= 0) return; const r = rng(pr, p); if (r) { lo = Math.min(lo, r[0]); hi = Math.max(hi, r[1]); } });
   return lo === Infinity ? null : [lo, hi];
 }
-function extent(p){
-  const e = productExtent(p);
-  let lo = e ? e[0] : Infinity, hi = e ? e[1] : -Infinity;
-  if (p.min != null) lo = Math.min(lo, p.min);
-  if (p.max != null) hi = Math.max(hi, p.max);
-  return lo === Infinity || hi === -Infinity ? [0, 1] : [lo, hi];
+// Range shown beside the input and used by the slider.
+function sliderSpec(p){
+  const d = prec(p);
+  let lo = p.min, hi = p.max, src = 'Allowable';
+  if (p.type === 'percent') { if (lo == null) lo = 0; if (hi == null) hi = 100; }
+  if (lo == null || hi == null) {
+    const e = productExtent(p);
+    if (p.min == null && p.max == null) src = 'Products cover';
+    if (lo == null) lo = e ? e[0] : 0;
+    if (hi == null) hi = e ? e[1] : lo + 1;
+  }
+  let step, dec;
+  if (d != null) { step = Math.pow(10, -d); dec = d; }
+  if (!(hi > lo)) hi = lo + (step || Math.max(Math.abs(lo) * 0.1, 1));
+  if (d == null) { step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 200))); dec = Math.max(0, -Math.floor(Math.log10(step))); }
+  return {lo, hi, step, dec, src};
 }
 function refSpan(p){
   if (p.min != null && p.max != null && p.max > p.min) return p.max - p.min;
+  if (p.type === 'percent') return 100;
   const e = productExtent(p);
   if (!e) return 1;
   return e[1] - e[0] > 0 ? e[1] - e[0] : Math.max(Math.abs(e[1]), 1);
 }
 function rank(){
   const act = S.parameters.filter(p => S.inputs[p.id] != null);
-  const weighted = act.filter(p => p.weight > 0);
-  const spans = {}; act.forEach(p => spans[p.id] = refSpan(p));
+  const spans = {}; act.forEach(p => { if (!isBool(p)) spans[p.id] = refSpan(p); });
   const res = S.products.map(pr => {
-    let ws = 0, ss = 0, within = 0; const fits = {};
+    let ws = 0, ss = 0, within = 0, n = 0; const fits = {};
     act.forEach(p => {
-      const v = S.inputs[p.id], r = rng(pr, p);
-      let s = 0, st = 'missing', d = null;
-      if (r) {
-        if (v >= r[0] && v <= r[1]) { s = 100; st = 'within'; }
-        else { d = v < r[0] ? v - r[0] : v - r[1]; s = Math.max(0, 100 - 200 * Math.abs(d) / spans[p.id]); st = s >= 60 ? 'near' : 'far'; }
+      const v = S.inputs[p.id], w = wOf(pr, p);
+      let s = 0, st = 'missing', d = null, r = null;
+      if (isBool(p)) {
+        r = pr.flags[p.id] || null;
+        if (r) { if (r === 'either' || r === v) { s = 100; st = 'within'; } else st = 'far'; }
+      } else {
+        r = rng(pr, p);
+        if (r) {
+          if (v >= r[0] && v <= r[1]) { s = 100; st = 'within'; }
+          else { d = v < r[0] ? v - r[0] : v - r[1]; s = Math.max(0, 100 - 200 * Math.abs(d) / spans[p.id]); st = s >= 60 ? 'near' : 'far'; }
+        }
       }
-      if (p.weight > 0) { ws += p.weight; ss += p.weight * s; if (st === 'within') within++; }
-      fits[p.id] = {s, st, d, v, r, excluded: !(p.weight > 0)};
+      if (w > 0) { ws += w; ss += w * s; n++; if (st === 'within') within++; }
+      fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0)};
     });
-    return {pr, score: ws ? ss / ws : 0, within, n: weighted.length, fits};
+    return {pr, score: ws ? ss / ws : 0, within, n, fits};
   });
-  res.sort((a, b) => b.score - a.score || b.within - a.within || a.pr.name.localeCompare(b.pr.name));
-  return {res, act, weighted};
+  res.sort((a, b) => b.score - a.score || b.n - a.n || b.within - a.within || a.pr.name.localeCompare(b.pr.name));
+  return {res, act};
 }
 
 /* ======================= VALIDATION ======================= */
@@ -243,6 +306,11 @@ function issues(){
     if (p.min != null && p.max != null && p.min > p.max) out.push(`${n}: allowable minimum exceeds maximum.`);
   });
   S.products.forEach(pr => S.parameters.forEach(p => {
+    if (wOf(pr, p) <= 0) return;
+    if (isBool(p)) {
+      if (!pr.flags[p.id]) out.push(`${pr.name}: no Yes/No value for ${p.name}; this parameter scores 0% for this product.`);
+      return;
+    }
     const raw = pr.ranges[p.id] || [null, null];
     if (raw[0] == null || raw[1] == null) { out.push(`${pr.name}: no complete range for ${p.name}; this parameter scores 0% for this product.`); return; }
     if (raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
@@ -282,84 +350,84 @@ function renderMatch(){
       <div class="grid">${S.parameters.map(inputCard).join('')}</div></section>
     <section><h2>Result</h2><div id="result"></div></section>
     <section><h2 id="listTitle">All Products</h2><div id="list"></div>
-      <div class="legend"><span style="--c:var(--good)">Within range</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far</span><span style="--c:var(--gray)">Excluded / no data</span></div></section>`;
-  // Typed value -> slider position
-  view.querySelectorAll('[data-in]').forEach(el => el.addEventListener('input', () => {
-    const id = el.dataset.in, v = num(el.value), s = view.querySelector(`[data-s="${id}"]`);
-    if (v == null) delete S.inputs[id]; else S.inputs[id] = v;
-    if (s) {
-      s.classList.toggle('unset', v == null);
-      if (v != null) s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
-    }
-    S.selectedId = null; save(); updateMatch();
-  }));
-  // Slider -> input value
+      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div></section>`;
+  // Typed numeric value (rounded to the parameter's accuracy) -> slider
+  view.querySelectorAll('input[data-in]').forEach(el => {
+    el.addEventListener('input', () => {
+      const id = el.dataset.in, v = roundP(P(id), num(el.value));
+      syncSlider(id, v); setInput(id, v);
+    });
+    el.addEventListener('change', () => { const v = S.inputs[el.dataset.in]; el.value = v == null ? '' : v; });
+  });
+  // Yes / No
+  view.querySelectorAll('select[data-in]').forEach(el => el.addEventListener('change', () => setInput(el.dataset.in, el.value || null)));
+  // Slider -> value (snaps to the parameter's increment)
   view.querySelectorAll('[data-s]').forEach(el => el.addEventListener('input', () => {
-    const id = el.dataset.s, p = S.parameters.find(x => x.id === id), sp = sliderSpec(p);
+    const id = el.dataset.s, sp = sliderSpec(P(id));
     const v = Number(Number(el.value).toFixed(sp.dec));
-    S.inputs[id] = v; el.classList.remove('unset');
-    view.querySelector(`[data-in="${id}"]`).value = v;
-    S.selectedId = null; save(); updateMatch();
+    el.classList.remove('unset');
+    view.querySelector(`input[data-in="${id}"]`).value = v;
+    setInput(id, v);
   }));
   $('#clearIn').onclick = () => { S.inputs = {}; S.selectedId = null; save(); renderMatch(); };
   updateMatch();
 }
-// Slider travel: the parameter's allowable range if entered, otherwise the span of all products.
-function sliderSpec(p){
-  let lo, hi;
-  if (p.min != null && p.max != null && p.max > p.min) { lo = p.min; hi = p.max; }
-  else {
-    const e = extent(p); lo = e[0]; hi = e[1];
-    if (p.min != null) lo = p.min;
-    if (p.max != null) hi = p.max;
-  }
-  if (!(hi > lo)) hi = lo + Math.max(Math.abs(lo) * 0.1, 1);
-  const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 200)));
-  const dec = Math.max(0, -Math.floor(Math.log10(step)));
-  return {lo, hi, step, dec};
+function setInput(id, v){ if (v == null) delete S.inputs[id]; else S.inputs[id] = v; S.selectedId = null; save(); updateMatch(); }
+function syncSlider(id, v){
+  const s = view.querySelector(`[data-s="${id}"]`);
+  if (!s) return;
+  s.classList.toggle('unset', v == null);
+  if (v != null) s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
 }
 function inputCard(p){
-  const v = S.inputs[p.id], sp = sliderSpec(p);
-  const pos = v == null ? (sp.lo + sp.hi) / 2 : Math.min(sp.hi, Math.max(sp.lo, v));
+  const v = S.inputs[p.id];
+  const details = p.details ? `<div class="xsmall muted clamp" style="margin-top:3px">${esc(p.details)}</div>` : '';
+  if (isBool(p)) {
+    return `<div class="card inp">
+      <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">Yes / No</span></div>
+      <select data-in="${p.id}" aria-label="${esc(p.name)}">
+        <option value="">— Select —</option>
+        <option value="yes" ${v === 'yes' ? 'selected' : ''}>Yes</option>
+        <option value="no" ${v === 'no' ? 'selected' : ''}>No</option>
+      </select>
+      <div class="hrow"><span class="xsmall muted">Select Yes or No</span><span class="xsmall wt">Weight: ${p.weight}</span></div>
+      ${details}
+    </div>`;
+  }
+  const sp = sliderSpec(p), d = prec(p);
+  const pos = v == null ? sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step : Math.min(sp.hi, Math.max(sp.lo, v));
   return `<div class="card inp">
     <div class="row"><b>${esc(p.name)}</b><span class="spacer"></span><span class="muted small">${esc(p.unit)}</span></div>
-    <input type="number" step="any" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
-    <div class="hrow"><span class="xsmall" data-hint="${p.id}"></span><span class="xsmall wt" data-wt="${p.id}"></span></div>
+    <input type="number" step="${d == null ? 'any' : Math.pow(10, -d)}" data-in="${p.id}" value="${v == null ? '' : v}" placeholder="Enter value" aria-label="${esc(p.name)}">
+    <div class="hrow"><span class="xsmall" data-hint="${p.id}"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>
     <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
     <div class="hrow xsmall muted"><span>${fmt(sp.lo)}</span><span>${fmt(sp.hi)}</span></div>
-    ${p.details ? `<div class="xsmall muted clamp" style="margin-top:3px">${esc(p.details)}</div>` : ''}
+    ${details}
   </div>`;
 }
 function updateMatch(){
-  const {res, act, weighted} = rank();
-  const totalW = weighted.reduce((a, p) => a + p.weight, 0);
-  // hints and weight influence
+  const {res, act} = rank();
   S.parameters.forEach(p => {
-    const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), wt = view.querySelector(`[data-wt="${p.id}"]`);
-    const hasRange = p.min != null || p.max != null;
+    if (isBool(p)) return;
+    const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), sp = sliderSpec(p);
     const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
     if (h) {
-      const e = productExtent(p);
       h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
-      h.textContent = out ? `Outside allowable range ${fmt(p.min)} – ${fmt(p.max)}`
-        : hasRange ? `Allowable: ${fmt(p.min)} – ${fmt(p.max)}`
-        : e ? `Products cover ${fmt(e[0])} – ${fmt(e[1])}` : 'No product data';
+      h.textContent = out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.lo)} – ${fmt(sp.hi)}`;
     }
-    if (wt) wt.textContent = !(p.weight > 0) ? 'Weight 0 · excluded'
-      : v == null ? `Weight ${p.weight}`
-      : `Weight ${p.weight} · ${Math.round(p.weight / totalW * 100)}%`;
   });
-  // center result
+  const anyRel = res.some(r => r.n > 0);
   const box = $('#result');
-  const shown = act.length ? (res.find(r => r.pr.id === S.selectedId) || res[0]) : null;
-  if (!shown) {
+  const shown = act.length && anyRel ? (res.find(r => r.pr.id === S.selectedId) || res[0]) : null;
+  if (!act.length) {
     box.innerHTML = `<div class="card empty muted"><div class="big">☝️</div>Enter one or more parameters above to identify the best-matching product.</div>`;
-  } else if (!weighted.length) {
-    box.innerHTML = `<div class="card empty muted">All entered parameters have a weight of 0. Increase at least one weight to calculate a match.</div>`;
+  } else if (!anyRel) {
+    box.innerHTML = `<div class="card empty muted">None of the entered parameters are marked relevant for any product. Review relevance on the Products tab.</div>`;
   } else {
     const isBest = shown === res[0];
     const C = 2 * Math.PI * 64, col = shown.score >= 95 ? 'var(--good)' : shown.score >= 60 ? 'var(--warn)' : 'var(--bad)';
     const fits = act.map(p => fitRow(p, shown.fits[p.id])).join('');
+    const notRel = act.length - shown.n;
     const alts = res.filter(r => r !== shown).slice(0, 3).map(r => `<button data-pick="${r.pr.id}">${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
     box.innerHTML = `<div class="card">
       <div class="result-top">
@@ -369,22 +437,24 @@ function updateMatch(){
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
           <div class="pname">${esc(shown.pr.name)}</div>
           ${shown.pr.notes ? `<div class="muted small">${esc(shown.pr.notes)}</div>` : ''}
-          <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> weighted parameters within the product's allowable range.</div></div>
+          <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div></div>
       </div>
       <div style="margin-top:12px">${fits}</div>
       ${alts ? `<div class="alts"><span class="small muted">${isBest ? 'Alternatives:' : 'Other candidates:'}</span>${alts}</div>` : ''}
     </div>`;
     box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.selectedId = b.dataset.pick; save(); updateMatch(); });
   }
-  // ranked list
-  $('#listTitle').textContent = act.length ? 'All Products – Ranked by Match' : 'All Products';
+  const scored = act.length && anyRel;
+  $('#listTitle').textContent = scored ? 'All Products – Ranked by Match' : 'All Products';
   $('#list').innerHTML = res.map((r, i) => {
     const sc = r.score >= 95 ? 'var(--good)' : r.score >= 60 ? 'var(--warn)' : 'var(--bad)';
-    const scored = act.length && weighted.length;
     const chips = S.parameters.map(p => {
-      const f = r.fits[p.id], rr = rng(r.pr, p);
-      const cls = f && !f.excluded ? f.st : '';
-      return `<div class="chip ${cls}"><span class="muted">${esc(p.name)}</span><b>${rr ? fmt(rr[0]) + '–' + fmt(rr[1]) : '—'}</b></div>`;
+      const rel = wOf(r.pr, p) > 0, f = r.fits[p.id];
+      let val;
+      if (!rel) val = 'N/A';
+      else if (isBool(p)) val = r.pr.flags[p.id] ? BL[r.pr.flags[p.id]] : '—';
+      else { const rr = rng(r.pr, p); val = rr ? fmt(rr[0]) + '–' + fmt(rr[1]) : '—'; }
+      return `<div class="chip ${!rel ? 'na' : f ? f.st : ''}"><span class="muted">${esc(p.name)}</span><b>${val}</b></div>`;
     }).join('');
     return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
@@ -393,23 +463,30 @@ function updateMatch(){
       <div class="chips">${chips}</div></div>`;
   }).join('');
   $('#list').querySelectorAll('[data-row]').forEach(el => el.onclick = () => {
-    if (!act.length) return;
+    if (!scored) return;
     S.selectedId = el.dataset.row; save(); updateMatch();
     $('#result').scrollIntoView({behavior: 'smooth', block: 'start'});
   });
 }
 function fitRow(p, f){
   const st = f.excluded ? 'excluded' : f.st;
-  let txt = f.excluded ? 'Excluded (weight 0)' : f.st === 'within' ? 'Within range' : f.st === 'missing' ? 'No data'
+  const wl = f.excluded ? 'Not relevant' : `Weight: ${f.w}`;
+  if (isBool(p)) {
+    const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Matches' : f.st === 'missing' ? 'No data' : 'Does not match';
+    return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
+      <span class="xsmall muted">Input ${BL[f.v]} · Product ${f.r ? BL[f.r] : '—'} · ${wl}</span>
+      <span class="st c-${st}">${txt}</span></div></div>`;
+  }
+  const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Within range' : f.st === 'missing' ? 'No data'
     : (f.d < 0 ? 'Below by ' : 'Above by ') + fmt(Math.abs(f.d)) + (p.unit ? ' ' + p.unit : '');
-  const [e0, e1] = extent(p);
-  let lo = Math.min(e0, f.v), hi = Math.max(e1, f.v);
-  if (hi <= lo) hi = lo + Math.max(Math.abs(lo) * 0.1, 1);
-  const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+  const sp = sliderSpec(p), e = productExtent(p);
+  let lo = Math.min(sp.lo, e ? e[0] : sp.lo, f.v), hi = Math.max(sp.hi, e ? e[1] : sp.hi, f.v);
+  if (hi <= lo) hi = lo + 1;
+  const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
   const pos = x => ((x - lo) / (hi - lo) * 100).toFixed(2);
-  const band = f.r ? `<div class="band" style="left:${pos(f.r[0])}%;width:${Math.max(pos(f.r[1]) - pos(f.r[0]), 1.5)}%"></div>` : '';
+  const band = f.r && !f.excluded ? `<div class="band" style="left:${pos(f.r[0])}%;width:${Math.max(pos(f.r[1]) - pos(f.r[0]), 1.5)}%"></div>` : '';
   return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
-    <span class="xsmall muted">${f.r ? fmt(f.r[0]) + '–' + fmt(f.r[1]) : '—'} ${esc(p.unit)} · W${p.weight}</span>
+    <span class="xsmall muted">${f.r && !f.excluded ? fmt(f.r[0]) + '–' + fmt(f.r[1]) + ' ' + esc(p.unit) + ' · ' : ''}${wl}</span>
     <span class="st c-${st}">${esc(txt)}</span></div>
     <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div></div>`;
 }
@@ -421,12 +498,12 @@ function renderParams(){
     <section><div class="sec-h"><h2>Parameters</h2><button class="btn primary" id="addP">+ Add</button></div>
       ${S.parameters.length ? S.parameters.map((p, i) => `
         <div class="card item" data-edit="${p.id}">
-          <div class="row"><b>${esc(p.name)}</b><span class="muted small">${esc(p.unit)}</span><span class="spacer"></span><span class="pill">Weight ${p.weight}</span></div>
-          <div class="small muted">Allowable range: ${fmt(p.min)} – ${fmt(p.max)}</div>
+          <div class="row"><b>${esc(p.name)}</b><span class="muted small">${esc(p.unit)}</span><span class="spacer"></span><span class="pill">Weight: ${p.weight}</span></div>
+          <div class="small muted">${esc(TYPES[p.type].label)}${isBool(p) ? '' : ` · Allowable: ${fmt(p.min)} – ${fmt(p.max)}`}</div>
           ${p.details ? `<div class="small muted clamp">${esc(p.details)}</div>` : ''}
           <div class="item-actions"><button data-up="${p.id}" ${i ? '' : 'disabled'}>Move up</button><button data-down="${p.id}" ${i < S.parameters.length - 1 ? '' : 'disabled'}>Move down</button><button class="danger" data-del="${p.id}">Delete</button></div>
-        </div>`).join('') : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, units, allowable range, weight and description.</div>`}
-      <p class="xsmall muted" style="margin:4px">Weight (0–10) sets each parameter's share of the overall match score. 0 excludes the parameter. The Match screen shows each weight and its current share of the score.</p>
+        </div>`).join('') : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`}
+      <p class="xsmall muted" style="margin:4px">Weight (0–10) is the default for every product. On the Products tab each parameter can be marked not relevant (weight 0) or given its own weight for that product.</p>
     </section>
     ${S.parameters.length ? `<button class="btn primary block" data-go="products">Next: enter products →</button>` : ''}`;
   $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; };
@@ -438,7 +515,9 @@ function renderParams(){
       const id = b.dataset.up || b.dataset.down || b.dataset.del, i = S.parameters.findIndex(p => p.id === id);
       if (b.dataset.del) {
         if (!confirm(`Delete "${S.parameters[i].name}"? Its values will be removed from all products.`)) return;
-        S.parameters.splice(i, 1); S.products.forEach(pr => delete pr.ranges[id]); delete S.inputs[id];
+        S.parameters.splice(i, 1);
+        S.products.forEach(pr => { delete pr.ranges[id]; delete pr.flags[id]; delete pr.rel[id]; });
+        delete S.inputs[id];
       } else {
         const j = b.dataset.up ? i - 1 : i + 1; [S.parameters[i], S.parameters[j]] = [S.parameters[j], S.parameters[i]];
       }
@@ -448,45 +527,79 @@ function renderParams(){
   });
 }
 function editParam(id){
-  const p = id ? S.parameters.find(x => x.id === id) : {id: uid('p'), name: '', unit: '', min: null, max: null, weight: 5, details: ''};
+  const p = id ? P(id) : {id: uid('p'), name: '', type: 'number', unit: '', min: null, max: null, weight: 5, details: ''};
   openSheet(id ? 'Edit Parameter' : 'New Parameter', `
-    <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Airflow"></div>
-    <div class="field"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="e.g., CFM"></div>
-    <div class="field"><label>Allowable range (optional)</label>
-      <div class="pair"><input id="fMin" type="number" step="any" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" step="any" value="${plain(p.max)}" placeholder="Maximum"></div>
-      <div class="xsmall muted" style="margin:5px 2px">Inputs outside this range are flagged. The range also sets how quickly the score drops outside a product's range.</div></div>
-    <div class="field"><label>Weight: <span id="fWv">${p.weight}</span> of 10</label>
+    <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
+    <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
+    <div class="field" id="unitWrap"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="e.g., CFM"></div>
+    <div class="field" id="rangeWrap"><label>Allowable range (optional)</label>
+      <div class="pair"><input id="fMin" type="number" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${plain(p.max)}" placeholder="Maximum"></div>
+      <div class="xsmall muted" id="rangeNote" style="margin:5px 2px"></div></div>
+    <div class="field"><label>Default weight: <span id="fWv">${p.weight}</span> of 10</label>
       <input id="fW" type="range" min="0" max="10" step="1" value="${p.weight}">
-      <div class="xsmall muted" style="margin:0 2px">0 = excluded · 5 = standard · 10 = critical</div></div>
+      <div class="xsmall muted" style="margin:0 2px">0 = excluded · 5 = standard · 10 = critical. Can be changed per product.</div></div>
     <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Basis, test standard, or notes">${esc(p.details)}</textarea></div>
     <div id="fErr" class="small err-text"></div>`,
     () => {
-      const name = $('#fName').value.trim(), min = num($('#fMin').value), max = num($('#fMax').value);
+      const type = $('#fType').value, t = TYPES[type], probe = {type};
+      const name = $('#fName').value.trim();
+      let min = type === 'boolean' ? null : roundP(probe, num($('#fMin').value));
+      let max = type === 'boolean' ? null : roundP(probe, num($('#fMax').value));
       if (!name) return 'Enter a parameter name.';
       if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return 'A parameter with this name already exists.';
       if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
-      Object.assign(p, {name, unit: $('#fUnit').value.trim(), min, max, weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
+      if (id && isBool(p) !== (type === 'boolean')) {
+        if (!confirm('Changing between Yes/No and a numeric type clears this parameter\'s product values and current input. Continue?')) return 'Type change cancelled.';
+        S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; });
+        delete S.inputs[p.id];
+      }
+      Object.assign(p, {name, type, unit: type === 'boolean' ? '' : (t.unit || $('#fUnit').value.trim()), min, max, weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
+      if (prec(p) != null) {   // apply the type's accuracy to existing product values and input
+        S.products.forEach(pr => { const r = pr.ranges[p.id]; if (r) pr.ranges[p.id] = [roundP(p, r[0]), roundP(p, r[1])]; });
+        if (typeof S.inputs[p.id] === 'number') S.inputs[p.id] = roundP(p, S.inputs[p.id]);
+      }
       if (!id) S.parameters.push(p);
       save(); setTab('params');
     },
-    () => { $('#fW').oninput = e => $('#fWv').textContent = e.target.value; if (!id) $('#fName').focus(); });
+    () => {
+      const apply = () => {
+        const type = $('#fType').value, t = TYPES[type];
+        $('#unitWrap').style.display = type === 'boolean' ? 'none' : '';
+        $('#rangeWrap').style.display = type === 'boolean' ? 'none' : '';
+        const u = $('#fUnit');
+        if (t.unit) { u.value = t.unit; u.disabled = true; } else { if (u.disabled) u.value = ''; u.disabled = false; }
+        const step = t.dec != null ? String(Math.pow(10, -t.dec)) : 'any';
+        $('#fMin').step = step; $('#fMax').step = step;
+        $('#rangeNote').textContent = type === 'percent' ? 'Values are whole percent. Leave blank for 0 – 100.'
+          : type === 'cm' ? 'Values are in cm to the nearest 0.1.'
+          : 'Inputs outside this range are flagged. The range also sets the slider span.';
+      };
+      $('#fType').onchange = apply; apply();
+      $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
+      if (!id) $('#fName').focus();
+    });
 }
 
 /* ======================= PRODUCTS TAB ======================= */
 function renderProducts(){
   if (!S.parameters.length) {
-    view.innerHTML = `<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as a lower and upper value for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`;
+    view.innerHTML = `<div class="card empty"><p><b>Define parameters first</b></p><p class="muted small">Products are entered as allowable values for each parameter.</p><button class="btn primary" data-go="params">Define parameters</button></div>`;
     return;
   }
   view.innerHTML = `<section><div class="sec-h"><h2>Products</h2><button class="btn primary" id="addPr">+ Add</button></div>
     ${S.products.length ? S.products.map(pr => {
-      const done = S.parameters.filter(p => rng(pr, p)).length;
+      const relP = S.parameters.filter(p => wOf(pr, p) > 0);
+      const done = relP.filter(p => isBool(p) ? pr.flags[p.id] : rng(pr, p)).length;
+      const na = S.parameters.length - relP.length;
       return `<div class="card item" data-edit="${pr.id}">
-        <div class="row"><b>${esc(pr.name)}</b><span class="spacer"></span><span class="xsmall ${done === S.parameters.length ? 'muted' : 'warn-text'}">${done}/${S.parameters.length} ranges</span></div>
+        <div class="row"><b>${esc(pr.name)}</b><span class="spacer"></span><span class="xsmall ${done === relP.length ? 'muted' : 'warn-text'}">${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}</span></div>
         ${pr.notes ? `<div class="xsmall muted">${esc(pr.notes)}</div>` : ''}
-        <div class="chips">${S.parameters.map(p => { const r = rng(pr, p); return `<div class="chip"><span class="muted">${esc(p.name)}</span><b>${r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'}</b></div>`; }).join('')}</div>
+        <div class="chips">${S.parameters.map(p => {
+          const rel = relOf(pr, p), on = rel.on && rel.w > 0;
+          let val; if (!on) val = 'N/A'; else if (isBool(p)) val = pr.flags[p.id] ? BL[pr.flags[p.id]] : '—'; else { const r = rng(pr, p); val = r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'; }
+          return `<div class="chip ${on ? '' : 'na'}"><span class="muted">${esc(p.name)}${on ? ' · W' + rel.w : ''}</span><b>${val}</b></div>`; }).join('')}</div>
         <div class="item-actions"><button data-dup="${pr.id}">Duplicate</button><button class="danger" data-del="${pr.id}">Delete</button></div>
-      </div>`; }).join('') : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product and its allowable range for each parameter.</div>`}
+      </div>`; }).join('') : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`}
     </section>
     ${configured() ? `<button class="btn primary block" data-go="match">Go to Match →</button>` : ''}`;
   $('#addPr').onclick = () => editProduct(null);
@@ -503,42 +616,76 @@ function renderProducts(){
   });
 }
 function editProduct(id){
-  const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', ranges: {}};
+  const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', ranges: {}, flags: {}, rel: {}};
+  const fields = S.parameters.map(p => {
+    const rel = relOf(pr, p), d = prec(p), step = d == null ? 'any' : Math.pow(10, -d);
+    let body;
+    if (isBool(p)) {
+      const f = pr.flags[p.id] || '';
+      body = `<select data-bv="${p.id}"><option value="">— Select —</option>
+        <option value="yes" ${f === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${f === 'no' ? 'selected' : ''}>No</option>
+        <option value="either" ${f === 'either' ? 'selected' : ''}>Either (Yes or No)</option></select>`;
+    } else {
+      const r = pr.ranges[p.id] || [null, null];
+      body = `<div class="pair"><input type="number" step="${step}" data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="${step}" data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>`;
+    }
+    return `<div class="pfield ${rel.on ? '' : 'off'}" data-pf="${p.id}">
+      <div class="prow"><label class="chk"><input type="checkbox" data-rel="${p.id}" ${rel.on ? 'checked' : ''}>
+        <span><b>${esc(p.name)}</b>${p.unit ? ` <span class="muted small">(${esc(p.unit)})</span>` : ''}</span></label>
+        <span class="wbox">Weight <input type="number" min="0" max="10" step="1" inputmode="numeric" data-pw="${p.id}" value="${plain(rel.w)}"></span></div>
+      <div class="pbody">${body}<div class="xsmall" data-pwarn="${p.id}" style="margin:5px 2px 0"></div></div>
+      <div class="offnote xsmall muted">Not relevant to this product (weight 0).</div>
+    </div>`;
+  }).join('');
   openSheet(id ? 'Edit Product' : 'New Product', `
     <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
     <div class="field"><label>Notes (optional)</label><input id="fNotes" value="${esc(pr.notes)}"></div>
-    ${S.parameters.map(p => { const r = pr.ranges[p.id] || [null, null]; return `
-      <div class="field"><label>${esc(p.name)}${p.unit ? ' (' + esc(p.unit) + ')' : ''}</label>
-        <div class="pair"><input type="number" step="any" data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="any" data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>
-        <div class="xsmall" data-pw="${p.id}" style="margin:5px 2px"></div></div>`; }).join('')}
+    <div class="field"><label>Parameters – check each one relevant to this product and enter its weight (0–10)</label></div>
+    ${fields}
     <div id="fErr" class="small err-text"></div>`,
     () => {
       const name = $('#fName').value.trim();
       if (!name) return 'Enter a product name.';
-      const ranges = {};
-      S.parameters.forEach(p => {
-        const lo = num(document.querySelector(`[data-lo="${p.id}"]`).value), hi = num(document.querySelector(`[data-hi="${p.id}"]`).value);
-        if (lo != null || hi != null) ranges[p.id] = [lo, hi];
-      });
-      Object.assign(pr, {name, notes: $('#fNotes').value.trim(), ranges});
+      const ranges = {}, flags = {}, rel = {};
+      for (const p of S.parameters) {
+        const on = document.querySelector(`[data-rel="${p.id}"]`).checked;
+        const w = num(document.querySelector(`[data-pw="${p.id}"]`).value);
+        if (on && (w == null || w < 0 || w > 10)) return `Enter a weight from 0 to 10 for ${p.name}.`;
+        rel[p.id] = {on, w: on ? w : (w == null ? p.weight : w)};
+        if (isBool(p)) { const v = document.querySelector(`[data-bv="${p.id}"]`).value; if (v) flags[p.id] = v; }
+        else {
+          const lo = roundP(p, num(document.querySelector(`[data-lo="${p.id}"]`).value));
+          const hi = roundP(p, num(document.querySelector(`[data-hi="${p.id}"]`).value));
+          if (lo != null || hi != null) ranges[p.id] = [lo, hi];
+        }
+      }
+      Object.assign(pr, {name, notes: $('#fNotes').value.trim(), ranges, flags, rel});
       if (!id) S.products.push(pr);
       save(); setTab('products');
     },
     () => {
       const check = p => {
+        const w = document.querySelector(`[data-pwarn="${p.id}"]`);
+        if (isBool(p)) { w.textContent = ''; return; }
         const lo = num(document.querySelector(`[data-lo="${p.id}"]`).value), hi = num(document.querySelector(`[data-hi="${p.id}"]`).value);
-        const w = document.querySelector(`[data-pw="${p.id}"]`);
         let m = '', warn = true;
         if ((lo == null) !== (hi == null)) m = 'Enter both a lower and an upper value.';
         else if (lo != null && lo > hi) m = 'Lower value exceeds upper value.';
         else if (lo != null && p.min != null && Math.min(lo, hi) < p.min) m = `Range extends below the allowable minimum (${fmt(p.min)}).`;
         else if (lo != null && p.max != null && Math.max(lo, hi) > p.max) m = `Range extends above the allowable maximum (${fmt(p.max)}).`;
         else if (p.min != null || p.max != null) { m = `Allowable: ${fmt(p.min)} – ${fmt(p.max)}`; warn = false; }
+        else if (prec(p) != null) { m = p.type === 'cm' ? 'Nearest 0.1 cm.' : 'Whole percent.'; warn = false; }
         w.textContent = m; w.className = 'xsmall ' + (warn ? 'warn-text' : 'muted');
       };
       S.parameters.forEach(p => {
         check(p);
         document.querySelectorAll(`[data-lo="${p.id}"],[data-hi="${p.id}"]`).forEach(i => i.oninput = () => check(p));
+        const cb = document.querySelector(`[data-rel="${p.id}"]`);
+        cb.onchange = () => {
+          document.querySelector(`[data-pf="${p.id}"]`).classList.toggle('off', !cb.checked);
+          const wi = document.querySelector(`[data-pw="${p.id}"]`);
+          if (cb.checked && (wi.value === '' || Number(wi.value) === 0)) wi.value = p.weight > 0 ? p.weight : 5;
+        };
       });
       if (!id) $('#fName').focus();
     });
@@ -549,7 +696,7 @@ function renderData(){
   const list = issues();
   view.innerHTML = `
     <section><h2>Settings File (CSV)</h2><div class="card">
-      <p class="small muted" style="margin-top:0">Import or export all parameters, weights and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
+      <p class="small muted" style="margin-top:0">Import or export all parameters, types, weights, relevance and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
       <div class="pair"><button class="btn" id="impBtn" style="flex:1">Import CSV</button><button class="btn primary" id="expBtn" style="flex:1" ${S.parameters.length ? '' : 'disabled'}>Export CSV</button></div>
       <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p>
     </div></section>
@@ -575,13 +722,37 @@ function renderData(){
 }
 
 /* ======================= CSV ======================= */
+// [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Weight, Description
+//   Type: Number | Length (cm) | Percent (%) | Yes/No
+// [PRODUCTS]   Product, Notes, then per parameter:
+//   numeric: "<Name> Lower", "<Name> Upper";  Yes/No: "<Name> Value" (Yes / No / Either)
+//   and "<Name> Weight" (0 = not relevant; blank = parameter default)
+const TYPE_CSV = {number: 'Number', cm: 'Length (cm)', percent: 'Percent (%)', boolean: 'Yes/No'};
+function parseType(t, unit){
+  const l = String(t || '').toLowerCase(), u = String(unit || '').trim().toLowerCase();
+  if (l.includes('yes') || l.includes('bool')) return 'boolean';
+  if (l.includes('percent') || l.includes('%')) return 'percent';
+  if (l.includes('cm') || l.includes('length')) return 'cm';
+  if (!l) { if (u === 'cm') return 'cm'; if (u === '%') return 'percent'; }
+  return 'number';
+}
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(){
-  const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'], ['Name', 'Unit', 'Range Min', 'Range Max', 'Weight', 'Description']];
-  S.parameters.forEach(p => rows.push([p.name, p.unit, plain(p.min), plain(p.max), plain(p.weight), p.details]));
+  const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'], ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Weight', 'Description']];
+  S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit, plain(p.min), plain(p.max), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
-  const h = ['Product', 'Notes']; S.parameters.forEach(p => h.push(p.name + ' Lower', p.name + ' Upper')); rows.push(h);
-  S.products.forEach(pr => { const r = [pr.name, pr.notes]; S.parameters.forEach(p => { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }); rows.push(r); });
+  const h = ['Product', 'Notes'];
+  S.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
+  rows.push(h);
+  S.products.forEach(pr => {
+    const r = [pr.name, pr.notes];
+    S.parameters.forEach(p => {
+      if (isBool(p)) r.push(pr.flags[p.id] ? BL[pr.flags[p.id]] : '');
+      else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
+      r.push(plain(wOf(pr, p)));
+    });
+    rows.push(r);
+  });
   return rows.map(r => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
 function parseRows(t){
@@ -598,14 +769,15 @@ function parseRows(t){
   return rows;
 }
 function splitBound(h){
-  const sfx = [[' minimum', 0], [' maximum', 1], [' lower', 0], [' upper', 1], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
+  const sfx = [[' minimum', 0], [' maximum', 1], [' weight', 'w'], [' lower', 0], [' upper', 1], [' value', 'v'], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
   const l = h.toLowerCase();
-  for (const [s, i] of sfx) if (l.endsWith(s)) { const b = h.slice(0, -s.length).trim(); if (b) return [b, i]; }
+  for (const [s, k] of sfx) if (l.endsWith(s)) { const b = h.slice(0, -s.length).trim(); if (b) return [b, k]; }
   return null;
 }
 function fromCSV(text){
   const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
   let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1;
+  const findP = name => out.parameters.find(x => x.name.toLowerCase() === name.toLowerCase());
   for (const row of rows) {
     if (row.every(x => !x.trim())) continue;
     const first = (row[0] || '').trim();
@@ -616,10 +788,14 @@ function fromCSV(text){
       const col = keys => { for (const k of keys) if (pHead[k] != null && pHead[k] < row.length) return row[pHead[k]]; return undefined; };
       const name = (col(['name', 'parameter']) || '').trim();
       if (!name) continue;
-      if (out.parameters.some(p => p.name.toLowerCase() === name.toLowerCase())) { notes.push(`Duplicate parameter "${name}" was ignored.`); continue; }
+      if (findP(name)) { notes.push(`Duplicate parameter "${name}" was ignored.`); continue; }
+      const unit = (col(['unit', 'units']) || '').trim(), type = parseType(col(['type']), unit), probe = {type};
       let w = num(col(['weight']));
       w = w == null ? 5 : Math.max(0, Math.min(10, Math.round(w)));
-      out.parameters.push({id: uid('p'), name, unit: (col(['unit', 'units']) || '').trim(), min: num(col(['range min', 'min', 'minimum'])), max: num(col(['range max', 'max', 'maximum'])), weight: w, details: (col(['description', 'details']) || '').trim()});
+      out.parameters.push({id: uid('p'), name, type, unit: type === 'boolean' ? '' : (TYPES[type].unit || unit),
+        min: type === 'boolean' ? null : roundP(probe, num(col(['range min', 'min', 'minimum']))),
+        max: type === 'boolean' ? null : roundP(probe, num(col(['range max', 'max', 'maximum']))),
+        weight: w, details: (col(['description', 'details']) || '').trim()});
     }
     else if (section === '[PRODUCTS]') {
       if (!cols) {
@@ -629,21 +805,30 @@ function fromCSV(text){
           if (['product', 'name', 'model'].includes(l)) nameIdx = i;
           else if (['notes', 'note', 'description'].includes(l)) notesIdx = i;
           else { const b = splitBound(h); if (b) {
-            let p = out.parameters.find(x => x.name.toLowerCase() === b[0].toLowerCase());
-            if (!p) { p = {id: uid('p'), name: b[0], unit: '', min: null, max: null, weight: 5, details: ''}; out.parameters.push(p); notes.push(`Parameter "${b[0]}" was found only in the product columns and was added without units or range.`); }
-            cols.push([i, p.id, b[1]]);
+            let p = findP(b[0]);
+            if (!p) {
+              p = {id: uid('p'), name: b[0], type: b[1] === 'v' ? 'boolean' : 'number', unit: '', min: null, max: null, weight: 5, details: ''};
+              out.parameters.push(p);
+              notes.push(`Parameter "${b[0]}" was found only in the product columns and was added with default settings.`);
+            }
+            cols.push([i, p, b[1]]);
           } }
         });
         continue;
       }
       const name = (row[nameIdx] || '').trim();
       if (!name) continue;
-      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', ranges: {}};
-      cols.forEach(([i, pid, b]) => { const r = pr.ranges[pid] || [null, null]; r[b] = num(row[i]); pr.ranges[pid] = r; });
+      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', ranges: {}, flags: {}, rel: {}};
+      cols.forEach(([i, p, k]) => {
+        const c = row[i];
+        if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
+        else if (k === 'v') { if (isBool(p)) { const b = parseBool(c); if (b) pr.flags[p.id] = b; } }
+        else if (!isBool(p)) { const r = pr.ranges[p.id] || [null, null]; r[k] = roundP(p, num(c)); pr.ranges[p.id] = r; }
+      });
       out.products.push(pr);
     }
   }
-  if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Unit, Range Min, Range Max, Weight, Description).');
+  if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Weight, Description).');
   return {data: out, notes};
 }
 $('#fileIn').onchange = async e => {
@@ -654,7 +839,7 @@ $('#fileIn').onchange = async e => {
     if ((S.parameters.length || S.products.length) &&
         !confirm(`Replace current settings with ${data.parameters.length} parameters and ${data.products.length} products from ${f.name}?`)) return;
     S.title = data.title || S.title; S.parameters = data.parameters; S.products = data.products; S.inputs = {}; S.selectedId = null;
-    save(); setTab('data');
+    fix(S); save(); setTab('data');
     alert(`Imported ${data.parameters.length} parameters and ${data.products.length} products.` + (notes.length ? '\n\n' + notes.join('\n') : ''));
   } catch (err) { alert('Import failed: ' + err.message); }
 };
@@ -684,19 +869,20 @@ $('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (type
 
 /* ======================= SAMPLE DATA ======================= */
 function sample(){
-  const defs = [['Airflow', 'CFM', 500, 25000, 8, 'Design supply airflow.'], ['External Static Pressure', 'in. w.c.', 0, 8, 6, 'External static pressure at design airflow.'],
-    ['Cooling Capacity', 'MBH', 10, 600, 8, 'Total cooling capacity at design conditions.'], ['Sound Power', 'dBA', 50, 90, 4, 'Maximum discharge sound power level.'],
-    ['Operating Weight', 'lb', 200, 6000, 3, 'Operating weight for structural coordination.']];
-  const params = defs.map(d => ({id: uid('p'), name: d[0], unit: d[1], min: d[2], max: d[3], weight: d[4], details: d[5]}));
+  const defs = [['Airflow', 'number', 'CFM', 500, 25000, 8, 'Design supply airflow.'], ['External Static Pressure', 'number', 'in. w.c.', 0, 8, 6, 'External static pressure at design airflow.'],
+    ['Cooling Capacity', 'number', 'MBH', 10, 600, 8, 'Total cooling capacity at design conditions.'], ['Sound Power', 'number', 'dBA', 50, 90, 4, 'Maximum discharge sound power level.'],
+    ['Operating Weight', 'number', 'lb', 200, 6000, 3, 'Operating weight for structural coordination.']];
+  const params = defs.map(d => ({id: uid('p'), name: d[0], type: d[1], unit: d[2], min: d[3], max: d[4], weight: d[5], details: d[6]}));
   const rows = [['Unit AH-06', 'Compact horizontal', [[1200, 2400], [0.5, 1.5], [30, 60], [62, 70], [450, 600]]], ['Unit AH-10', 'Horizontal / vertical', [[2000, 4000], [0.5, 2], [50, 100], [64, 73], [600, 850]]],
     ['Unit AH-15', 'Modular, ECM fans', [[3500, 6000], [1, 2.5], [90, 150], [66, 75], [900, 1250]]], ['Unit AH-20', 'Modular, fan array', [[5000, 8000], [1, 3], [120, 200], [67, 76], [1200, 1600]]],
     ['Unit AH-25', 'Indoor, double-wall', [[6500, 10000], [1.5, 3.5], [160, 250], [69, 78], [1500, 2100]]], ['Unit AH-30', 'Outdoor rated', [[8000, 12000], [1.5, 4], [200, 300], [70, 80], [2000, 2800]]],
     ['Unit AH-40', 'Custom casing', [[10000, 16000], [2, 5], [260, 400], [72, 82], [2600, 3600]]], ['Unit AH-50', 'Custom, fan array', [[14000, 20000], [2, 6], [340, 500], [74, 84], [3300, 4500]]]];
-  const products = rows.map(r => ({id: uid('r'), name: r[0], notes: r[1], ranges: Object.fromEntries(params.map((p, i) => [p.id, r[2][i]]))}));
+  const products = rows.map(r => ({id: uid('r'), name: r[0], notes: r[1], ranges: Object.fromEntries(params.map((p, i) => [p.id, r[2][i]])), flags: {}, rel: {}}));
   return {title: 'Air Handling Unit Selector', parameters: params, products, inputs: {}, tab: null, selectedId: null, lastExport: null};
 }
 
 /* ======================= START ======================= */
+save();
 setTab(S.tab || (configured() ? 'match' : 'params'));
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

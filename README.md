@@ -30,11 +30,18 @@ Public repository note: the app **code** is publicly viewable. Your parameters, 
 
 All changes, inputs and weights are saved automatically on the device.
 
-## Weight scale
+## Parameter types
 
-- 0 = excluded, 5 = standard, 10 = critical.
-- Overall score = Σ(weight × parameter score) ÷ Σ(weight), for parameters that have an input value.
-- Each input card shows that parameter's current share of the overall score.
+- **Length – cm:** values to the nearest 0.1 cm.
+- **Percent – %:** whole percent; slider spans 0–100 unless an allowable range is entered.
+- **Yes / No:** drop-down on the Match screen; each product is set to Yes, No or Either.
+- **Number:** custom units.
+
+## Weights and relevance
+
+- Each parameter has a default weight (0–10), shown on the Match screen as "Weight: #".
+- In each product, a checkbox marks each parameter relevant. Unchecked = weight 0 (not scored for that product). Checked = enter the product's weight for that parameter.
+- Product score = Σ(weight × parameter score) ÷ Σ(weight), using that product's weights, for parameters that have an input value.
 
 ## Backups
 
@@ -46,4 +53,7 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 
 ## CSV format
 
-See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A; product columns named `<Parameter> Lower` / `<Parameter> Upper`. Weight column accepts 0–10. In Excel, save as **CSV UTF-8**.
+See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
+- Parameters: Name, Type (Number / Length (cm) / Percent (%) / Yes/No), Unit, Range Min, Range Max, Weight, Description.
+- Products: numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
+- In Excel, save as **CSV UTF-8**.

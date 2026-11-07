@@ -1,17 +1,15 @@
 ﻿[SETTINGS]
-Title,Air Handling Unit Selector
+Title,Example Selector - replace with project data
 
 [PARAMETERS]
-Name,Unit,Range Min,Range Max,Weight,Description
-Airflow,CFM,500,25000,8,Design supply airflow.
-External Static Pressure,in. w.c.,0,8,6,External static pressure at design airflow.
-Cooling Capacity,MBH,10,600,8,Total cooling capacity at design conditions.
-Sound Power,dBA,50,90,4,Maximum discharge sound power level.
-Operating Weight,lb,200,6000,3,Operating weight for structural coordination.
+Name,Type,Unit,Range Min,Range Max,Weight,Description
+Length,Length (cm),cm,0,30,8,Measured to the nearest 0.1 cm.
+Coverage,Percent (%),%,0,100,6,Whole percent.
+Option Required,Yes/No,,,,9,Yes or No.
+Capacity,Number,L/s,0,500,5,Custom units example.
 
 [PRODUCTS]
-Product,Notes,Airflow Lower,Airflow Upper,External Static Pressure Lower,External Static Pressure Upper,Cooling Capacity Lower,Cooling Capacity Upper,Sound Power Lower,Sound Power Upper,Operating Weight Lower,Operating Weight Upper
-Unit AH-06,Compact horizontal,1200,2400,0.5,1.5,30,60,62,70,450,600
-Unit AH-10,Horizontal / vertical,2000,4000,0.5,2.0,50,100,64,73,600,850
-Unit AH-15,"Modular, ECM fans",3500,6000,1.0,2.5,90,150,66,75,900,1250
-Unit AH-20,"Modular, fan array",5000,8000,1.0,3.0,120,200,67,76,1200,1600
+Product,Notes,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Option Required Value,Option Required Weight,Capacity Lower,Capacity Upper,Capacity Weight
+Product A,Example only,2,10.5,8,0,40,6,No,9,50,150,5
+Product B,Example only,5,20,8,30,100,6,Either,9,100,300,5
+Product C,Example only - Option Required not relevant,1,15,3,10,60,6,Yes,0,,,0
