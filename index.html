@@ -479,7 +479,7 @@ function updateMatch(){
           <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span></div></div>
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
           <div class="pname">${esc(shown.pr.name)}</div>
-          ${shown.pr.notes ? `<div class="muted small">${esc(shown.pr.notes)}</div>` : ''}
+          ${shown.pr.notes ? `<div class="muted small" style="white-space:pre-line">${esc(shown.pr.notes)}</div>` : ''}
           <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div></div>
       </div>
       <div style="margin-top:12px">${fits}</div>
@@ -501,7 +501,7 @@ function updateMatch(){
     }).join('');
     return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
-        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted">${esc(r.pr.notes)}</div>` : ''}</div>
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted clamp">${esc(r.pr.notes)}</div>` : ''}</div>
         ${scored ? `<div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div>` : ''}</div>
       <div class="chips">${chips}</div></div>`;
   }).join('');
@@ -641,7 +641,7 @@ function renderProducts(){
       const na = S.parameters.length - relP.length;
       return `<div class="card item" data-edit="${pr.id}">
         <div class="row"><b>${esc(pr.name)}</b><span class="spacer"></span><span class="xsmall ${done === relP.length ? 'muted' : 'warn-text'}">${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}</span></div>
-        ${pr.notes ? `<div class="xsmall muted">${esc(pr.notes)}</div>` : ''}
+        ${pr.notes ? `<div class="small muted clamp">${esc(pr.notes)}</div>` : ''}
         <div class="chips">${S.parameters.map(p => {
           const rel = relOf(pr, p), on = rel.on && rel.w > 0;
           let val; if (!on) val = 'N/A'; else if (isBool(p)) val = pr.flags[p.id] ? BL[pr.flags[p.id]] : '—'; else { const r = rng(pr, p); val = r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'; }
@@ -689,9 +689,9 @@ function editProduct(id){
   }).join('');
   openSheet(id ? 'Edit Product' : 'New Product', `
     <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
-    <div class="field"><label>Notes (optional)</label><input id="fNotes" value="${esc(pr.notes)}"></div>
     <div class="field"><label>Parameters – check each one relevant to this product and enter its weight (0–10)</label></div>
     ${fields}
+    <div class="field"><label>Description</label><textarea id="fNotes" placeholder="Basis, manufacturer, or notes">${esc(pr.notes)}</textarea></div>
     <div id="fErr" class="small err-text"></div>`,
     () => {
       const name = $('#fName').value.trim();
@@ -797,7 +797,7 @@ function toCSV(){
   const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'], ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Weight', 'Description']];
   S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit, plain(p.min), plain(p.max), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
-  const h = ['Product', 'Notes'];
+  const h = ['Product', 'Description'];
   S.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
   rows.push(h);
   S.products.forEach(pr => {

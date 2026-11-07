@@ -62,5 +62,5 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
 - Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Weight, Description.
-- Products: numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
+- Products: Product, Description, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - In Excel, save as **CSV UTF-8**.
