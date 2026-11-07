@@ -255,6 +255,36 @@ nav.tabs button.on{color:var(--accent)}
 .sheet-body{flex:1;overflow-y:auto;padding:16px 14px calc(env(safe-area-inset-bottom) + 30px);-webkit-overflow-scrolling:touch}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#141c28;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20;max-width:90%;text-align:center}
 #toast.show{opacity:1}
+/* Result and All Products shown as two scrolling halves */
+#result.rpanel{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:2px;border-radius:14px;box-shadow:inset 0 -10px 10px -10px rgba(0,0,0,.25)}
+#result.rpanel>.card{margin-bottom:2px}
+/* flagged field: persistent highlight with a floating comment (tap the comment to accept) */
+:root{--flag:#b45309}
+@media (prefers-color-scheme:dark){:root{--flag:#c2570c}}
+.fhost{position:relative}
+.fhosting{z-index:30}
+.flagged{box-shadow:0 0 0 2px var(--flag)!important;background-color:color-mix(in srgb,var(--flag) 13%,var(--card))!important;border-radius:10px}
+.flagged.bad{animation:shake .45s ease}
+.inp.flagged{border-radius:14px}
+.fbub{position:absolute;z-index:40;width:max-content;max-width:min(290px,100%);padding:8px 11px;border-radius:10px;border:0;background:var(--flag);color:#fff;font:inherit;font-size:12.5px;font-weight:600;line-height:1.3;text-align:left;box-shadow:0 6px 18px rgba(0,0,0,.3);cursor:pointer;animation:fadeIn .2s ease;-webkit-user-select:none;user-select:none}
+.fbub::before{content:"";position:absolute;top:-5px;left:var(--ax,24px);width:11px;height:11px;background:var(--flag);transform:translateX(-50%) rotate(45deg);border-radius:2px}
+.fbub .fd{display:block;font-weight:500;opacity:.92;margin-top:3px}
+.fbub .fa{display:block;margin-top:5px;text-decoration:underline}
+/* description detail: Normal (full), Advanced (two lines), Expert (hidden) */
+.dmode{flex:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;border:1px solid var(--line);background:var(--soft);color:var(--accent);border-radius:999px;padding:3px 10px;cursor:pointer;white-space:nowrap}
+.dmode::after{content:" ⟳";font-weight:400}
+.dtext{white-space:pre-line;overflow-wrap:anywhere}
+.inp .dtext{margin:3px 0 4px}
+body[data-dm-params="advanced"] .d-params,body[data-dm-products="advanced"] .d-products,body[data-dm-result="advanced"] .d-result{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-products,body[data-dm-result="expert"] .d-result{display:none}
+/* list cards: side buttons aligned to the top of the tile; parameter chips wrap */
+.lcard>.mv,.lcard>.acts{justify-content:flex-start}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.chips.wrap .chip{max-width:100%}
+.chips.wrap .chip b{overflow-wrap:anywhere}
+[data-field]{cursor:pointer}
+.sec-h .btn,.sec-h .link{white-space:nowrap;flex:none}
+.sec-h h2{min-width:0}
 </style>
 </head>
 <body>
@@ -294,7 +324,15 @@ const TYPES = {
   boolean: {label: 'Y/N'}
 };
 const BL = {yes: 'Yes', no: 'No', either: 'Either'};
-const NUM_RES = ['1', '0.1', '0.02', 'var'];          // Number resolution options
+const NUM_RES = ['1', '0.1', '0.01', 'var'];          // Number resolution options
+// Description detail per area: Normal = full text, Advanced = two lines, Expert = hidden.
+const DM = ['normal', 'advanced', 'expert'], DM_LABEL = {normal: 'Normal', advanced: 'Advanced', expert: 'Expert'};
+const dmOf = k => (S.dm && DM.includes(S.dm[k])) ? S.dm[k] : 'normal';
+const dmBtn = k => `<button type="button" class="dmode" data-dm="${k}" aria-label="Description detail: ${DM_LABEL[dmOf(k)]}">${DM_LABEL[dmOf(k)]}</button>`;
+function applyDM(){
+  ['params', 'products', 'result'].forEach(k => document.body.setAttribute('data-dm-' + k, dmOf(k)));
+  document.querySelectorAll('[data-dm]').forEach(b => { b.textContent = DM_LABEL[dmOf(b.dataset.dm)]; b.setAttribute('aria-label', 'Description detail: ' + b.textContent); });
+}
 const PCT_PREC = ['1', '0.1', '0.01'];                // % precision options
 const ROUND = {nearest: 'Nearest', up: 'Round up', down: 'Round down'};
 const decOf = r => (String(r).split('.')[1] || '').length;
@@ -317,6 +355,7 @@ function fix(s){
     p.nums = Array.isArray(p.nums) ? p.nums.filter(v => typeof v === 'number' && isFinite(v)) : [];
     if (p.type === 'boolean') { p.unit = ''; p.min = null; p.max = null; }
     if (p.def === undefined) p.def = null;
+    if (p.type === 'number' && Number(p.res) === 0.02) p.res = 0.01;   // earlier 0.02 option is now 0.01
     if (p.type === 'number' && !NUM_RES.includes(String(p.res))) p.res = 0.1;
     if (p.type === 'number' && p.res !== 'var') p.res = Number(p.res);
     if (p.type === 'percent') { if (!PCT_PREC.includes(String(p.res))) p.res = 1; p.res = Number(p.res); if (!(p.step > 0)) p.step = 25; }
@@ -408,7 +447,7 @@ function rangeText(pr, p){
   if (isVar(p)) return varSpan(p, r[0], r[1]);
   return fmt(r[0]) + '–' + fmt(r[1]);
 }
-// Resolution of typed and product values: % 1 / 0.1 / 0.01; Number 1 / 0.1 / 0.02.
+// Resolution of typed and product values: % 1 / 0.1 / 0.01; Number 1 / 0.1 / 0.01.
 function resOf(p){
   if (p.type === 'percent') return Number(p.res) || 1;
   if (p.type === 'number' && !isNumVar(p)) return Number(p.res) || 0.1;
@@ -671,10 +710,10 @@ function moveItem(arr, i, dir, id){
   save(); refresh(id, snap);
 }
 // Uniform, collapsible section (tap the heading to collapse or expand; remembered).
-function section(key, title, action, body, h2id){
+function section(key, title, action, body, h2id, dm){
   const c = S.collapsed && S.collapsed[key];
   return `<section class="${c ? 'collapsed' : ''}" data-section="${key}">
-    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2>${action || ''}</div>
+    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2>${dm ? dmBtn(dm) : ''}<span class="spacer"></span>${action || ''}</div>
     <div class="sec-body">${body}</div></section>`;
 }
 function slide(sec, closing){
@@ -687,6 +726,14 @@ function slide(sec, closing){
   a.onfinish = () => { body.style.overflow = ''; if (closing) sec.classList.add('collapsed'); };
 }
 document.addEventListener('click', e => {
+  const dm = e.target.closest('[data-dm]');
+  if (dm) {   // cycle Normal → Advanced → Expert (shared by Match and Settings for the same area)
+    const k = dm.dataset.dm;
+    S.dm = S.dm || {}; S.dm[k] = DM[(DM.indexOf(dmOf(k)) + 1) % DM.length]; save(); applyDM();
+    if (S.tab !== 'settings') layoutMatch();
+    toast(`${k === 'params' ? 'Parameter' : k === 'products' ? 'Product' : 'Result'} descriptions: ${DM_LABEL[dmOf(k)]}${dmOf(k) === 'normal' ? ' (full)' : dmOf(k) === 'advanced' ? ' (two lines)' : ' (hidden)'}`);
+    return;
+  }
   const c = e.target.closest('[data-collapse]');
   if (c) {
     const sec = c.closest('section'), closing = !sec.classList.contains('collapsed');
@@ -710,6 +757,73 @@ document.addEventListener('pointerdown', e => {
   if (isEntry(a) && a !== e.target && !isEntry(e.target)) a.blur();
 }, true);
 $('#gear').onclick = () => S.tab === 'settings' ? setTab('match') : openSettings(null);
+// Sliders move only when the round thumb is grabbed; a press elsewhere on the track is ignored.
+const THUMB = 28;
+function onThumb(el, x){
+  const r = el.getBoundingClientRect(), min = Number(el.min) || 0, max = Number(el.max) || 0, v = Number(el.value);
+  const f = max > min ? (v - min) / (max - min) : 0;
+  return Math.abs(x - (r.left + THUMB / 2 + f * (r.width - THUMB))) <= THUMB * 0.8;
+}
+document.addEventListener('pointerdown', e => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || el.type !== 'range') return;
+  clearTimeout(el._lockT);
+  if (onThumb(el, e.clientX)) { el._lockV = null; return; }
+  el._lockV = el.value;
+  if (e.pointerType === 'mouse') e.preventDefault();
+}, true);
+['input', 'change'].forEach(t => document.addEventListener(t, e => {
+  const el = e.target;
+  if (el && el._lockV != null) { el.value = el._lockV; e.stopImmediatePropagation(); }
+}, true));
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, e => {
+  const el = e.target;
+  if (el instanceof HTMLInputElement && el.type === 'range') { clearTimeout(el._lockT); el._lockT = setTimeout(() => el._lockV = null, 60); }
+  else document.querySelectorAll('input[type=range]').forEach(r => { if (r._lockV != null) { clearTimeout(r._lockT); r._lockT = setTimeout(() => r._lockV = null, 60); } });
+}, true));
+/* ---------- Flagged fields: shake, persistent highlight and a floating comment ----------
+   The comment stays until the field (or the comment) is selected. Selecting the comment accepts
+   the value shown; selecting the field lets the value be reviewed, and it is validated again on leaving. */
+const FLAG_HEAD = 'Data changed – review value before proceeding.';
+function flag(el, detail, o = {}){
+  if (!el || !el.isConnected) return;
+  unflag(el);
+  const target = o.target || el;
+  const host = o.host || target.closest('.inp, .pfield, .vrow, .field') || target.parentElement;
+  host.classList.add('fhost', 'fhosting');
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'fbub';
+  b.innerHTML = `${esc(o.head || FLAG_HEAD)}${detail ? `<span class="fd">${esc(detail)}</span>` : ''}<span class="fa">Select me to accept ✓</span>`;
+  host.appendChild(b);
+  target.classList.add('flagged');
+  const f = el._flag = {b, target, host, key: o.key, accept: o.accept};
+  f.onFocus = () => { unflag(el); if (o.review) o.review(); };
+  el.addEventListener('focusin', f.onFocus);
+  el.addEventListener('pointerdown', f.onFocus);
+  b.addEventListener('pointerdown', ev => ev.stopPropagation());
+  b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); unflag(el); if (f.accept) f.accept(); });
+  placeFlag(el);
+  attention(target);
+}
+function unflag(el){
+  const f = el && el._flag;
+  if (!f) return;
+  el._flag = null;
+  el.removeEventListener('focusin', f.onFocus); el.removeEventListener('pointerdown', f.onFocus);
+  f.b.remove(); f.target.classList.remove('flagged', 'bad');
+  if (!f.host.querySelector('.fbub')) f.host.classList.remove('fhosting');
+}
+function placeFlag(el){
+  const f = el._flag; if (!f) return;
+  const hr = f.host.getBoundingClientRect(), er = el.getBoundingClientRect(), bw = f.b.offsetWidth;
+  const cx = er.left - hr.left + Math.min(er.width / 2, 60);
+  const left = Math.max(0, Math.min(hr.width - bw, cx - bw / 2));
+  f.b.style.top = (er.bottom - hr.top + 8) + 'px';
+  f.b.style.left = left + 'px';
+  f.b.style.setProperty('--ax', Math.max(12, Math.min(bw - 12, cx - left)) + 'px');
+}
+// Fields still waiting for acknowledgement in the editor (visible ones only).
+const pendingFlags = root => [...root.querySelectorAll('.flagged')].filter(x => x.getClientRects().length);
 // Chip rows scroll together so each parameter stays in one column.
 const chipX = {};   // scroll position per list
 function syncChips(root, key){
@@ -728,7 +842,7 @@ function syncChips(root, key){
 function renderSettings(){
   const secs = [['params', 'Parameters', S.parameters.length], ['products', 'Products', S.products.length], ['data', 'Data', null]];
   view.innerHTML = secs.map(([k, t, c]) => `<section class="acc ${S.sec === k ? 'open' : ''}" data-acc-sec="${k}">
-      <div class="sec-h acc-h" data-acc="${k}"><h2><span class="caret">▾</span>${t}${c != null ? ` <span class="pill">${c}</span>` : ''}</h2><span id="act-${k}"></span></div>
+      <div class="sec-h acc-h" data-acc="${k}"><h2><span class="caret">▾</span>${t}${c != null ? ` <span class="pill">${c}</span>` : ''}</h2>${k === 'data' ? '' : dmBtn(k)}<span class="spacer"></span><span id="act-${k}"></span></div>
       <div class="acc-body" id="body-${k}"></div></section>`).join('');
   if (S.sec) {
     const box = $('#body-' + S.sec);
@@ -738,19 +852,21 @@ function renderSettings(){
   updateHeader();
 }
 // Shared list card used by the Parameters and Products tabs.
-function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = ''){
+// kind: 'params' or 'products' (description detail). Tapping the title, description or a chip opens
+// the editor at that field.
+function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = '', kind = 'params'){
   return `<div class="card lcard ${cls}" data-card="${id}">
     <div class="mv"><button data-act="up" data-id="${id}" ${i ? '' : 'disabled'} aria-label="Move up">▲</button><button data-act="down" data-id="${id}" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">▼</button></div>
     <div class="lbody" data-act="edit" data-id="${id}">
-      <b class="ltitle">${esc(title)}</b>
+      <b class="ltitle" data-field="name">${esc(title)}</b>
       ${meta ? `<div class="xsmall ${metaWarn ? 'warn-text' : 'muted'}">${meta}</div>` : ''}
-      ${desc ? `<div class="small muted clamp">${esc(desc)}</div>` : ''}
-      <div class="chips sync">${chips}</div>
+      ${desc ? `<div class="small muted dtext d-${kind}" data-field="desc">${esc(desc)}</div>` : ''}
+      <div class="chips ${kind === 'params' ? 'wrap' : 'sync'}">${chips}</div>
     </div>
     <div class="acts"><button data-act="dup" data-id="${id}">Duplicate</button><button class="danger" data-act="del" data-id="${id}">Delete</button></div>
   </div>`;
 }
-const chip = (label, val, cls = '') => `<div class="chip ${cls}"><span class="muted">${label}</span><b>${val}</b></div>`;
+const chip = (label, val, cls = '', field = '') => `<div class="chip ${cls}"${field ? ` data-field="${field}"` : ''}><span class="muted">${label}</span><b>${val}</b></div>`;
 
 /* ======================= MATCH TAB ======================= */
 function renderMatch(){
@@ -763,12 +879,13 @@ function renderMatch(){
   }
   S.collapsed = S.collapsed || {};
   if (S.collapsed['m-list'] === undefined) S.collapsed['m-list'] = true;   // All Products starts collapsed
+  if (S.inputsFull === undefined) S.inputsFull = true;
   if (!(S.entered || []).length) S.collapsed['m-result'] = true;          // Result stays collapsed until a parameter is entered
   view.innerHTML =
-    section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`) +
-    section('m-result', 'Result', '', '<div id="result"></div>') +
+    section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`, null, 'params') +
+    section('m-result', 'Result', '', '<div id="result"></div>', null, 'result') +
     section('m-list', 'All Products', '', `<div id="list"></div>
-      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div>`, 'listTitle');
+      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div>`, 'listTitle', 'products');
   // Value above the slider: shown as text; tapping it turns it into an entry field.
   // The entry is accepted when the field loses focus, using the parameter's rounding.
   view.querySelectorAll('input[data-in]').forEach(el => {
@@ -800,6 +917,7 @@ function renderMatch(){
     S.inputs = {}; S.parameters.forEach(p => { if (p.def != null) S.inputs[p.id] = p.def; });
     S.selectedId = null; S.entered = [];
     S.collapsed['m-inputs'] = false; S.collapsed['m-list'] = true; S.collapsed['m-result'] = true;
+    S.inputsFull = true;   // Reset is the only action that shows every parameter at once
     save(); renderMatch(); toast('Inputs reset to parameter defaults');
   };
   updateMatch();
@@ -821,14 +939,16 @@ function commitValue(el){
   el._busy = true;
   const id = el.dataset.in, p = P(id), tile = el.closest('.inp'), text = el.value.trim();
   tile.classList.remove('editing');
+  let note = null;
   if (text !== '' && num(text) == null) {
-    attention(tile); toast(`${p.name}: enter a number`);
+    note = `"${text}" is not a number; ${S.inputs[id] == null ? 'no value was entered' : 'the previous value ' + fmt(S.inputs[id]) + ' is kept'}.`;
   } else if (text !== '') {
     const raw = num(text), v = snap(p, raw, p.round);
     syncSlider(id, v); userInput(id, v);
-    if (v !== raw) toast(`${p.name}: ${fmt(raw)} → ${fmt(v)} (${ROUND[p.round].toLowerCase()})`);
+    if (v !== raw) note = `${fmt(raw)} → ${fmt(v)}${p.unit === '%' ? '%' : p.unit ? ' ' + p.unit : ''} (${ROUND[p.round].toLowerCase()} to the resolution ${resOf(p)}).`;
   }
   showValue(p);
+  if (note) flag(el, note, {target: tile, host: tile});
   el._busy = false;
 }
 // Size the value field to its text so the units sit right beside it.
@@ -847,17 +967,16 @@ function attention(tile){
   clearTimeout(tile._bad); tile._bad = setTimeout(() => tile.classList.remove('bad'), 1300);
 }
 function setInput(id, v){ if (v == null) delete S.inputs[id]; else S.inputs[id] = v; S.selectedId = null; save(); updateMatch(); }
-// A change made by the person: the parameter counts toward the score, Result expands (without
-// moving the screen) and All Products collapses.
+// A change made by the person: the parameter counts toward the score. The layout is kept as it is
+// (All Products and the two-tile input pane stay open); Result expands only when nothing below the
+// inputs is open, without moving the screen.
 function userInput(id, v){
   S.entered = (S.entered || []).filter(x => x !== id);
   if (v != null) S.entered.push(id);
   const tile = view.querySelector(`[data-tile="${id}"]`);
   if (tile) tile.classList.toggle('pending', v == null);
   const keep = tile ? tile.getBoundingClientRect().top : null;
-  if (S.entered.length && (!S.collapsed['m-list'] || S.collapsed['m-result'])) {
-    setSection('m-list', false); setSection('m-result', true); layoutMatch();
-  }
+  if (S.entered.length && S.collapsed['m-result'] && S.collapsed['m-list']) setSection('m-result', true);
   setInput(id, v);
   if (tile && keep != null && tile.isConnected) window.scrollBy(0, tile.getBoundingClientRect().top - keep);
 }
@@ -884,28 +1003,34 @@ function setSection(key, open){
   const sec = view.querySelector(`[data-section="${key}"]`);
   if (sec && sec.classList.contains('collapsed') === open) slide(sec, !open);
 }
-// While All Products is open, Input Parameters becomes a sliding pane two tiles tall.
+// Input Parameters: a sliding pane two tiles tall, except after Reset (or opening with nothing
+// entered), when every tile is shown. Result and All Products open together share the screen as
+// two scrolling halves; All Products alone fills the rest of the screen.
 function layoutMatch(){
   const grid = $('#inGrid');
   if (!grid) return;
-  const pane = !S.collapsed['m-list'] && !S.collapsed['m-inputs'];
+  const pane = !S.collapsed['m-inputs'] && !S.inputsFull;
   grid.classList.toggle('pane', pane);
   grid.style.maxHeight = '';
   if (pane) {
     const tiles = grid.children;
     if (tiles.length > 2) grid.style.maxHeight = (tiles[2].offsetTop - tiles[0].offsetTop - 2) + 'px';
   }
-  // All Products scrolls inside its own panel, filling the rest of the screen.
-  const list = $('#list');
-  if (list) {
-    const open = !S.collapsed['m-list'];
-    list.classList.toggle('lpanel', open);
-    list.style.maxHeight = '';
-    if (open) {
-      const top = list.getBoundingClientRect().top + window.scrollY;
-      list.style.maxHeight = Math.max(280, window.innerHeight - top - 24) + 'px';
-    }
+  const res = $('#result'), list = $('#list');
+  if (!res || !list) return;
+  const rOpen = !S.collapsed['m-result'], lOpen = !S.collapsed['m-list'], split = rOpen && lOpen;
+  res.classList.toggle('rpanel', split); res.style.maxHeight = '';
+  list.classList.toggle('lpanel', lOpen); list.style.maxHeight = '';
+  if (split) {
+    const head = view.querySelector('[data-section="m-list"] .sec-h');
+    const top = res.getBoundingClientRect().top + window.scrollY;
+    const half = Math.max(200, Math.floor((window.innerHeight - top - (head ? head.offsetHeight + 26 : 60) - 16) / 2));
+    res.style.maxHeight = half + 'px'; list.style.maxHeight = half + 'px';
+  } else if (lOpen) {
+    const top = list.getBoundingClientRect().top + window.scrollY;
+    list.style.maxHeight = Math.max(280, window.innerHeight - top - 24) + 'px';
   }
+  view.querySelectorAll('#inGrid .valin').forEach(el => el._flag && placeFlag(el));
 }
 // Scroll the product panel so the selected product is in view.
 function keepRow(){
@@ -915,11 +1040,15 @@ function keepRow(){
   if (rr.top < lr.top || rr.bottom > lr.bottom) list.scrollTop += rr.top - lr.top - Math.max(0, (list.clientHeight - row.offsetHeight) / 2);
 }
 function matchSectionToggled(key, open){
+  const entered = (S.entered || []).length;
+  if (key === 'm-inputs' && open) S.inputsFull = false;      // opened by the person: two tiles at a time
   if (key === 'm-list') {
-    if (open) {                                       // inputs two at a time, product list in its own panel
-      setSection('m-result', false);
+    if (open) {
+      S.inputsFull = false;
+      if (!S.collapsed['m-inputs']) setSection('m-result', false);   // inputs pane + product panel
+      else if (entered) setSection('m-result', true);              // Result and All Products split
       window.scrollTo({top: 0, behavior: reduceMotion() ? 'auto' : 'smooth'});
-    } else if ((S.entered || []).length) setSection('m-result', true);
+    } else if (entered) setSection('m-result', true);
   }
   save(); setTimeout(layoutMatch, 260);
 }
@@ -927,7 +1056,7 @@ function matchSectionToggled(key, open){
 function inputCard(p){
   const v = S.inputs[p.id];
   const top = `<div class="top"><b>${esc(p.name)}</b><span class="spacer"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>`;
-  const desc = p.details ? `<div class="bot"><span class="xsmall muted clamp desc">${esc(p.details)}</span></div>` : '';
+  const desc = p.details ? `<div class="xsmall muted dtext d-params desc">${esc(p.details)}</div>` : '';
   const u = p.unit ? `<span class="unit">${p.unit === '%' ? '%' : ' ' + esc(p.unit)}</span>` : '';
   const pending = !(S.entered || []).includes(p.id);
   if (isBool(p)) {
@@ -943,7 +1072,7 @@ function inputCard(p){
   const scale = sp.isVar
     ? `<div class="vrowx"><div class="vstrip" data-strip="${p.id}">${sp.items.map((x, i) => `<button class="vchip" data-vp="${p.id}" data-vi="${i}">${esc(x.label)}</button>`).join('')}</div>${u ? `<span class="xsmall muted">${u}</span>` : ''}</div>`
     : `<div class="ends"><span>${fmt(sp.rlo)}${u}</span><span class="valwrap"><input class="valin" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-in="${p.id}" value="${v == null ? '' : fmt(v)}" placeholder="—" aria-label="${esc(p.name)} value">${u}</span><span>${fmt(sp.rhi)}${u}</span></div>`;
-  const slider = p.slider === false && (p.type === 'number' || p.type === 'text') ? ''
+  const slider = p.slider === false ? ''
     : `<input type="range" class="vslider ${v == null || pending ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">`;
   return `<div class="card inp ${pending ? 'pending' : ''} ${slider ? '' : 'noslider'}" data-tile="${p.id}">${top}${desc}${scale}${slider}</div>`;
 }
@@ -974,7 +1103,7 @@ function updateMatch(){
           <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span><span class="xsmall muted">(score: ${fmt(shown.pts)} of ${fmt(shown.tot)})</span></div></div>
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
           <div class="pname">${esc(shown.pr.name)}</div>
-          ${shown.pr.notes ? `<div class="muted small" style="white-space:pre-line">${esc(shown.pr.notes)}</div>` : ''}
+          ${shown.pr.notes ? `<div class="muted small dtext d-result">${esc(shown.pr.notes)}</div>` : ''}
           <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div>
           ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
       </div>
@@ -998,7 +1127,7 @@ function updateMatch(){
     }).join('');
     return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
-        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted clamp">${esc(r.pr.notes)}</div>` : ''}</div>
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted dtext d-products">${esc(r.pr.notes)}</div>` : ''}</div>
         ${scored ? `<div class="scol"><div class="srow"><div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div></div><div class="sctx">(score: ${fmt(r.pts)} of ${fmt(r.tot)})</div></div>` : ''}</div>
       <div class="chips sync">${chips}</div></div>`;
   }).join('');
@@ -1010,8 +1139,8 @@ function updateMatch(){
     setSection('m-result', true); setSection('m-inputs', false); save(); updateMatch();
     keepRow();
     setTimeout(() => {
-      layoutMatch(); keepRow();
-      view.querySelector('[data-section="m-result"]').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'});
+      window.scrollTo(0, 0); layoutMatch(); keepRow();
+      $('#result').scrollTop = 0;
     }, 260);
   });
 }
@@ -1042,11 +1171,11 @@ function fitRow(p, f){
 function renderParams(box, act){
   const n = S.parameters.length;
   const cards = n ? S.parameters.map((p, i) => listCard(p.id, i, n, p.name, '', false, p.details,
-      chip('Type', esc(TYPES[p.type].label.split(' ')[0])) +
-      (isBool(p) ? chip('Values', 'Yes / No') : isVar(p) ? chip('Values', esc(varList(p).map(v => v.t).join(', ')) || '—') : isNumVar(p) ? chip('Values', esc(numList(p).map(fmt).join(', ')) || '—') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`)) +
-      (isBool(p) ? '' : chip('Resolution', esc(resText(p)))) +
-      chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : isVar(p) ? esc(vlabel(p, p.def) ?? '—') : fmt(p.def)) +
-      chip('Weight', p.weight))).join('')
+      chip('Type', esc(TYPES[p.type].label.split(' ')[0]), '', 'type') +
+      (isBool(p) ? chip('Values', 'Yes / No', '', 'type') : isVar(p) ? chip('Values', esc(varList(p).map(v => v.t).join(', ')) || '—', '', 'values') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`, '', 'allow')) +
+      (isBool(p) ? '' : chip('Resolution', esc(resText(p)), '', isVar(p) ? 'values' : 'res')) +
+      chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : isVar(p) ? esc(vlabel(p, p.def) ?? '—') : fmt(p.def), '', 'def') +
+      chip('Weight', p.weight, '', 'weight'), '', 'params')).join('')
     : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
   act.innerHTML = '<button class="btn primary" id="addP">+ Add</button>';
   box.innerHTML = (
@@ -1057,7 +1186,7 @@ function renderParams(box, act){
   box.onclick = e => {
     const t = e.target.closest('[data-act]'); if (!t) return;
     const id = t.dataset.id, i = S.parameters.findIndex(p => p.id === id), act = t.dataset.act;
-    if (act === 'edit') return editParam(id);
+    if (act === 'edit') { const f = e.target.closest('[data-field]'); return editParam(id, f && f.dataset.field); }
     if (act === 'up' || act === 'down') return moveItem(S.parameters, i, act === 'up' ? -1 : 1, id);
     if (act === 'dup') {
       const src = S.parameters[i], c = JSON.parse(JSON.stringify(src)); c.id = uid('p');
@@ -1081,7 +1210,17 @@ function renderParams(box, act){
     }
   };
 }
-function editParam(id){
+// Editor opened from a field in the list: bring that field into view, highlighted for acknowledgement.
+function focusField(sel){
+  setTimeout(() => {
+    const el = typeof sel === 'string' ? $('#sheetBody').querySelector(sel) : sel;
+    if (!el || !el.getClientRects().length) return;
+    const d = el.closest('details'); if (d) d.open = true;
+    el.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'});
+    setTimeout(() => flag(el, 'Opened from the list view.', {head: 'Review value before proceeding.'}), reduceMotion() ? 0 : 380);
+  }, reduceMotion() ? 0 : 300);
+}
+function editParam(id, field){
   const p = id ? P(id) : {id: uid('p'), name: '', type: 'number', unit: 'cm', min: null, max: null, def: null, weight: 5, details: '', res: 0.1, step: 25, vals: [], nums: [], dir: 'asc', round: 'nearest'};
   // Working copy of the listed values: Text uses characters; Number (Variable) uses numbers.
   let vals = varList(p).map(v => ({id: v.id, t: v.t}));
@@ -1097,6 +1236,7 @@ function editParam(id){
       <div class="xsmall muted" style="margin:5px 2px">${id ? 'Checked products use this parameter.' : 'Select the products this new parameter applies to.'} Their values are entered on the Products tab; products missing values are highlighted until complete.</div></details>` : '';
   // Resolution chosen per type (kept while switching types in the editor).
   const precSel = {number: p.type === 'number' ? String(p.res) : '0.1', percent: p.type === 'percent' ? String(p.res) : '1'};
+  let stepAck = p.stepAck || null;   // acknowledged range/step combination that does not divide evenly
   openSheet(id ? 'Edit Parameter' : 'New Parameter', `
     <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
     <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
@@ -1114,7 +1254,7 @@ function editParam(id){
       <div class="pair"><input id="fMin" type="number" value="${isList(p) ? '' : plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${isList(p) ? '' : plain(p.max)}" placeholder="Maximum"></div>
       <div class="xsmall muted" id="rangeNote" style="margin:5px 2px"></div></div>
     <div class="field" id="sliderWrap"><label class="switch"><input type="checkbox" id="fSlider" ${p.slider === false ? '' : 'checked'}><span class="sw"></span><span>Show slider on Match</span></label>
-      <div class="xsmall muted" style="margin:5px 2px">When off, the value is typed (Number) or chosen by tapping a listed value.</div></div>
+      <div class="xsmall muted" style="margin:5px 2px">When off, the value is typed (Number, %) or chosen by tapping a listed value.</div></div>
     <div class="field" id="roundWrap"><label>Manual entry rounding</label>
       <select id="fRound">${Object.entries(ROUND).map(([k, t]) => `<option value="${k}" ${p.round === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <div class="xsmall muted" style="margin:5px 2px" id="roundNote"></div></div>
@@ -1174,7 +1314,8 @@ function editParam(id){
         res: type === 'text' || type === 'boolean' ? null : res, step: step ?? p.step,
         vals: textList || numVar ? labels : [], nums: [], dir: textList || numVar ? dir : 'asc',
         round: type === 'boolean' || textList || numVar ? 'nearest' : $('#fRound').value,
-        slider: type === 'number' || type === 'text' ? $('#fSlider').checked : true,
+        slider: type === 'boolean' ? true : $('#fSlider').checked,
+        stepAck: type === 'number' || type === 'percent' ? stepAck : null,
         byValue: numVar && $('#fByVal').checked,
         weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
       // Keep references valid: deleted listed values are cleared; numbers move to the parameter's resolution.
@@ -1265,8 +1406,30 @@ function editParam(id){
           let v = r ? Math.round(o / r) * r : o;
           if (k === 'fStep' && r) v = Math.max(r, v);
           el.value = r ? v.toFixed(decOf(r)) : String(o);
-          if (shake && Math.abs(v - o) > 1e-9) attention(el);
+          if (shake && Math.abs(v - o) > 1e-9) {
+            const pct = $('#fType').value === 'percent' ? '%' : '';
+            flag(el, `${o}${pct} → ${el.value}${pct} (resolution ${r}${pct}).`, {accept: () => { keepShown(k); checkStep(); }, review: () => el._reviewed = true});
+          }
         });
+      };
+      // The value shown becomes the entered value (accepted or reviewed).
+      const keepShown = k => { orig[k] = num($('#' + k).value); if (k === 'fStep') stepMem[$('#fType').value] = orig[k]; };
+      // Slider step must divide the allowable range evenly; otherwise the last step is shorter and
+      // the combination is flagged once for acknowledgement.
+      const checkStep = () => {
+        const el = $('#fStep'), type = $('#fType').value, own = el._flag && el._flag.key === 'step';
+        if ((type !== 'number' && type !== 'percent') || mode()) { if (own) unflag(el); return; }
+        const s = num(el.value);
+        let a = num($('#fMin').value), b = num($('#fMax').value);
+        if (type === 'percent') { if (a == null) a = 0; if (b == null) b = 100; }
+        if (!(s > 0) || a == null || b == null || !(b > a)) { if (own) unflag(el); return; }
+        const q = (b - a) / s, key = `${a}|${b}|${s}`;
+        if (Math.abs(q - Math.round(q)) < 1e-6 || stepAck === key) { if (own) unflag(el); return; }
+        if (el._flag && (!own || el._flag.sk === key)) return;   // a review is already pending on this field
+        const u = type === 'percent' ? '%' : $('#fUnit').value ? ' ' + $('#fUnit').value : '';
+        flag(el, `Step ${s}${u} does not divide the allowable range ${a} – ${b}${u} evenly: ${Math.floor(q + 1e-9)} full steps, then a shorter last step to ${b}${u}.`,
+          {head: 'Slider step – review value before proceeding.', key: 'step', accept: () => stepAck = key, review: () => stepAck = key});
+        el._flag.sk = key;
       };
       const fillPrec = () => {
         const type = $('#fType').value;
@@ -1291,7 +1454,7 @@ function editParam(id){
         show('#valsWrap', list);
         show('#byValWrap', md === 'num');
         show('#dirBtn', list && !byVal);
-        show('#sliderWrap', type === 'number' || type === 'text');
+        show('#sliderWrap', type !== 'boolean');
         show('#roundWrap', type !== 'boolean' && !list);
         show('#defNumWrap', type !== 'boolean' && !list);
         show('#defVarWrap', list);
@@ -1317,19 +1480,25 @@ function editParam(id){
         const r = $('#fRound').value;
         $('#roundNote').textContent = `A typed value is rounded ${r === 'up' ? 'up' : r === 'down' ? 'down' : 'to the nearest'} ${$('#fPrec').value}${type === 'percent' ? '%' : $('#fUnit').value ? ' ' + $('#fUnit').value : ''}.`;
         if (list) drawVals();
+        checkStep();
       };
       // Changing the resolution re-formats the step, range and default to it; any value that the
       // new resolution changes shakes and highlights for review (the typed value is kept).
       $('#fPrec').onchange = () => {
         precSel[$('#fType').value] = $('#fPrec').value;
         apply();
-        if (!mode()) reformat(['fStep', 'fMin', 'fMax', 'fDef'], true);
+        if (!mode()) { reformat(['fStep', 'fMin', 'fMax', 'fDef'], true); checkStep(); }
       };
-      // Entered values are formatted to the resolution when the field is left.
+      // Entered values are formatted to the resolution when the field is left; a value changed by
+      // the formatting is flagged. Leaving a field without editing it accepts the value shown.
       ['fStep', 'fMin', 'fMax', 'fDef'].forEach(k => {
         const el = $('#' + k);
+        el.addEventListener('focus', () => el._before = el.value);
         el.addEventListener('input', () => { orig[k] = num(el.value); if (k === 'fStep') stepMem[$('#fType').value] = orig[k]; });
-        el.addEventListener('change', () => reformat([k], false));
+        el.addEventListener('blur', () => {
+          if (el.value === el._before) keepShown(k); else reformat([k], true);
+          checkStep();
+        });
       });
       ['#fType', '#fRound', '#fByVal'].forEach(s => $(s).onchange = apply);
       apply(); drawVals();
@@ -1342,6 +1511,11 @@ function editParam(id){
         count();
       }
       if (!id) $('#fName').focus();
+      if (field) {
+        const t = $('#fType').value, md = mode();
+        focusField({name: '#fName', type: '#fType', values: '#valList', allow: '#rangeWrap .pair', res: '#fPrec',
+          def: t === 'boolean' ? '#fDefB' : md ? '#fDefV' : '#fDef', weight: '#fW', desc: '#fDesc'}[field] || '#fName');
+      }
     });
 }
 
@@ -1358,9 +1532,9 @@ function renderProducts(box, act){
       const chips = S.parameters.map(p => {
         const rel = relOf(pr, p), on = rel.on && rel.w > 0;
         const val = on ? esc(rangeText(pr, p)) : 'N/A';
-        return chip(esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na');
+        return chip(esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na', 'pf:' + p.id);
       }).join('');
-      return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '');
+      return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '', 'products');
     }).join('')
     : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`;
   act.innerHTML = '<button class="btn primary" id="addPr">+ Add</button>';
@@ -1371,7 +1545,7 @@ function renderProducts(box, act){
   box.onclick = e => {
     const t = e.target.closest('[data-act]'); if (!t) return;
     const id = t.dataset.id, i = S.products.findIndex(p => p.id === id), act = t.dataset.act;
-    if (act === 'edit') return editProduct(id);
+    if (act === 'edit') { const f = e.target.closest('[data-field]'); return editProduct(id, f && f.dataset.field); }
     if (act === 'up' || act === 'down') return moveItem(S.products, i, act === 'up' ? -1 : 1, id);
     if (act === 'dup') {
       const c = JSON.parse(JSON.stringify(S.products[i])); c.id = uid('r'); c.name += ' (copy)';
@@ -1388,7 +1562,7 @@ function normLink(t){
   if (!t) return '';
   return /^[a-z][a-z0-9+.-]*:/i.test(t) ? t : 'https://' + t;
 }
-function editProduct(id){
+function editProduct(id, field){
   const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', link: '', ranges: {}, flags: {}, rel: {}};
   const hasVal = p => isBool(p) ? !!pr.flags[p.id] : !!rng(pr, p);
   const fields = S.parameters.map(p => {
@@ -1487,7 +1661,14 @@ function editProduct(id){
         document.querySelectorAll(`[data-lo="${p.id}"],[data-hi="${p.id}"]`).forEach(i => {
           i.oninput = () => check(p);
           // On leaving the field, snap to the parameter's resolution and range.
-          i.onchange = () => { const v = num(i.value); if (v != null && i.tagName === 'INPUT') i.value = conformValue(p, v); check(p); };
+          i.onchange = () => {
+            const v = num(i.value);
+            if (v != null && i.tagName === 'INPUT') {
+              const c = conformValue(p, v);
+              if (c !== v) { i.value = c; flag(i, `${String(v)} → ${fmt(c)}${p.unit ? ' ' + p.unit : ''} (${ruleText(p).charAt(0).toLowerCase() + ruleText(p).slice(1)}).`); }
+            }
+            check(p);
+          };
         });
         const cb = q(`[data-rel="${p.id}"]`);
         if (isBool(p)) q(`[data-bv="${p.id}"]`).onchange = () => check(p);
@@ -1504,6 +1685,12 @@ function editProduct(id){
       $('#pExpand').onclick = () => document.querySelectorAll('.pfield').forEach(f => f.classList.remove('collapsed'));
       $('#pCollapse').onclick = () => document.querySelectorAll('.pfield').forEach(f => f.classList.add('collapsed'));
       if (!id) $('#fName').focus();
+      if (field === 'name') focusField('#fName');
+      else if (field === 'desc') focusField('#fNotes');
+      else if (field && field.startsWith('pf:')) {
+        const pf = q(`[data-pf="${field.slice(3)}"]`);
+        if (pf) { pf.classList.remove('collapsed'); focusField(pf); }
+      }
     });
 }
 
@@ -1543,9 +1730,9 @@ function renderData(box){
 
 /* ======================= CSV ======================= */
 // [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description
-//   Type: Number / % / Text / Y/N. Resolution: Number = 1 / 0.1 / 0.02 / Variable; % = 1 / 0.1 / 0.01.
+//   Type: Number / % / Text / Y/N. Resolution: Number = 1 / 0.1 / 0.01 / Variable (0.02 in older files reads as 0.01); % = 1 / 0.1 / 0.01.
 //   Step: slider step for Number and %. Numbering (listed values): Ascending / Descending / By value (Number only).
-//   Slider (Number, Text): Yes / No.
+//   Slider (Number, %, Text): Yes / No.
 //   Values: Text values or Number (Variable) numbers separated by semicolons; Numbering (Text): Ascending / Descending.
 //   Rounding: Nearest / Round up / Round down. Product cells for Variable parameters hold the value text.
 // [PRODUCTS]   Product, Description, Link, then per parameter:
@@ -1572,7 +1759,7 @@ function toCSV(){
     p.type === 'percent' || (p.type === 'number' && !isNumVar(p)) ? plain(stepOf(p)) : '',
     isVar(p) ? varList(p).map(v => v.t).join('; ') : isNumVar(p) ? numList(p).join('; ') : '',
     isList(p) ? (byVal(p) ? 'By value' : p.dir === 'desc' ? 'Descending' : 'Ascending') : '',
-    p.type === 'number' || p.type === 'text' ? (p.slider === false ? 'No' : 'Yes') : '',
+    isBool(p) ? '' : (p.slider === false ? 'No' : 'Yes'),
     isBool(p) || isList(p) ? '' : ROUND[p.round],
     p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
@@ -1628,7 +1815,8 @@ function fromCSV(text){
       if (!name) continue;
       if (findP(name)) { notes.push(`Duplicate parameter "${name}" was ignored.`); continue; }
       const unit = (col(['unit', 'units']) || '').trim(), rawType = String(col(['type']) ?? '').toLowerCase();
-      const rcol = String(col(['resolution', 'precision']) ?? '').trim().toLowerCase();
+      let rcol = String(col(['resolution', 'precision']) ?? '').trim().toLowerCase();
+      if (num(rcol) === 0.02) rcol = '0.01';   // earlier 0.02 option
       const valList = [...new Map(String(col(['values', 'custom values', 'listed values']) ?? '').split(/[;|]/).map(t => t.trim()).filter(Boolean).map(t => [t.toLowerCase(), t])).values()];
       let type = parseType(rawType, unit);
       // Earlier files: a Number with Variable text values is now Text.
@@ -1728,7 +1916,17 @@ function openSheet(title, html, onSave, onMount){
 }
 function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; }
 $('#sheetCancel').onclick = closeSheet;
-$('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet(); };
+$('#sheetSave').onclick = () => {
+  // Highlighted fields must be reviewed (select the field) or accepted (select its comment) first.
+  const pend = pendingFlags($('#sheetBody'));
+  if (pend.length) {
+    $('#fErr').textContent = `Review ${pend.length} highlighted field${pend.length > 1 ? 's' : ''} before saving: select the field to review it, or its comment to accept the value shown.`;
+    pend[0].scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'});
+    attention(pend[0]);
+    return;
+  }
+  const err = sheetSave && sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet();
+};
 
 /* ======================= SAMPLE DATA ======================= */
 function sample(){
@@ -1760,8 +1958,14 @@ function sample(){
 
 /* ======================= START ======================= */
 save();
-// Match is always the opening view; inputs are kept from last time. Only Input Parameters is expanded.
-S.collapsed = Object.assign(S.collapsed || {}, {'m-inputs': false, 'm-result': true, 'm-list': true});
+// Match is always the opening view; inputs are kept from last time. With entered values, Input
+// Parameters is collapsed and Result and All Products share the screen; otherwise only the inputs show.
+{
+  const has = configured() && (S.entered || []).some(id => P(id) && S.inputs[id] != null);
+  S.collapsed = Object.assign(S.collapsed || {}, has ? {'m-inputs': true, 'm-result': false, 'm-list': false} : {'m-inputs': false, 'm-result': true, 'm-list': true});
+  S.inputsFull = !has;
+}
+applyDM();
 setTab('match');
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
