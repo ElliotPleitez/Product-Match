@@ -2,14 +2,14 @@
 Title,Example Selector - replace with project data
 
 [PARAMETERS]
-Name,Type,Unit,Range Min,Range Max,Resolution,Step,Values,Rounding,Default,Weight,Description
-Length,cm,cm,0,30,0.1,,,Nearest,5,8,Measured to the nearest 0.1 cm.
-Coverage,%,%,0,100,1,25,,Nearest,50,6,"Precision 1%, slider step 25%."
-Changes per week,Number,per week,,,Variable,,1; 2; 3; 5; 7,Round up,3,4,Defined values; typed entries round up.
-Option Required,Y/N,,,,,,,,No,9,Yes or No.
+Name,Type,Unit,Range Min,Range Max,Resolution,Step,Values,Numbering,Rounding,Default,Weight,Description
+Length,cm,cm,0,30,0.1,,,,Nearest,5,8,Measured to the nearest 0.1 cm.
+Coverage,%,%,0,100,1,25,,,Nearest,50,6,"Precision 1%, slider step 25%."
+Exudate level,Number,,,,Variable,,None; Light; Moderate; Heavy,Ascending,,Moderate,4,"Listed values, numbered by position (None = 1 … Heavy = 4)."
+Option Required,Y/N,,,,,,,,,No,9,Yes or No.
 
 [PRODUCTS]
-Product,Description,Link,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Changes per week Lower,Changes per week Upper,Changes per week Weight,Option Required Value,Option Required Weight
-Product A,Example only,https://example.com/product-a,2,10.5,8,0,50,6,1,3,4,No,9
-Product B,Example only,,5,20,8,25,100,6,2,5,4,Either,9
-Product C,Example only,https://example.com/product-c,1,15,3,0,75,6,3,7,4,Yes,0
+Product,Description,Link,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Exudate level Lower,Exudate level Upper,Exudate level Weight,Option Required Value,Option Required Weight
+Product A,Example only,https://example.com/product-a,2,10.5,8,0,50,6,Light,Moderate,4,No,9
+Product B,Example only,,5,20,8,25,100,6,Moderate,Heavy,4,Either,9
+Product C,Example only,https://example.com/product-c,1,15,3,0,75,6,None,Light,4,Yes,0

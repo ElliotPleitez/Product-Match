@@ -94,7 +94,9 @@ input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-ca
 .vrow .mv button{width:34px;height:30px;font-size:12px}
 .vrow .acts{gap:4px}
 .vrow .acts button{padding:5px 8px;font-size:12px}
+.vbody{display:flex;align-items:center;gap:8px}
 .vbody input{font-size:17px;padding:8px 10px}
+.vnum{flex:none;min-width:26px;height:26px;border-radius:13px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .prow{display:flex;align-items:center;gap:8px}
 .relcb{width:22px;height:22px;margin:0;padding:0;flex:none;accent-color:var(--accent)}
 .ptoggle{flex:1;min-width:0;display:flex;align-items:center;gap:4px;background:none;border:0;padding:4px 0;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
@@ -275,9 +277,22 @@ function fix(s){
     if (p.type === 'number' && p.res !== 'var') p.res = Number(p.res);
     if (p.type === 'percent') { if (!PCT_PREC.includes(String(p.res))) p.res = 1; p.res = Number(p.res); if (!(p.step > 0)) p.step = 25; }
     if (!ROUND[p.round]) p.round = 'nearest';
-    p.vals = Array.isArray(p.vals) ? p.vals.filter(v => typeof v === 'number' && isFinite(v)) : [];
+    if (p.dir !== 'desc') p.dir = 'asc';
+    p.vals = Array.isArray(p.vals) ? p.vals : [];
   });
   s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; if (pr.link == null) pr.link = ''; });
+  // Earlier versions stored Variable values as numbers: convert to labels and remap references.
+  s.parameters.forEach(p => {
+    if (!p.vals.some(v => typeof v === 'number')) { p.vals = p.vals.filter(v => v && typeof v === 'object'); return; }
+    const map = new Map(), list = [];
+    const vid = () => 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);   // runs before helpers load
+    p.vals.filter(v => typeof v === 'number' && isFinite(v)).forEach(v => { if (!map.has(v)) { const o = {id: vid(), t: String(v)}; map.set(v, o.id); list.push(o); } });
+    p.vals = list;
+    const to = x => map.get(x) ?? null;
+    s.products.forEach(pr => { const r = pr.ranges[p.id]; if (r) pr.ranges[p.id] = [to(r[0]), to(r[1])]; });
+    if (typeof s.inputs[p.id] === 'number') s.inputs[p.id] = to(s.inputs[p.id]);
+    if (typeof p.def === 'number') p.def = to(p.def);
+  });
   return s;
 }
 function load(){
@@ -295,7 +310,29 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 const P = id => S.parameters.find(x => x.id === id);
 const isBool = p => p.type === 'boolean';
 const isVar = p => p.type === 'number' && p.res === 'var';
-const varVals = p => (p.vals || []).filter(v => typeof v === 'number' && isFinite(v));
+// Variable: text labels; each label's number is its list position (ascending: first = 1;
+// descending: first = n). Products, inputs and defaults reference labels by id.
+const varList = p => (p.vals || []).filter(v => v && typeof v === 'object');
+const vIdx = (p, id) => varList(p).findIndex(v => v.id === id);
+function vnum(p, id){ const n = varList(p).length, i = vIdx(p, id); return i < 0 ? null : p.dir === 'desc' ? n - i : i + 1; }
+function vlabel(p, id){ const v = varList(p).find(v => v.id === id); return v ? v.t : null; }
+function labOfNum(p, x){ const L = varList(p), n = L.length, i = p.dir === 'desc' ? n - x : x - 1; return L[i] ? L[i].t : fmt(x); }
+// Two position numbers shown as labels in list order (e.g. "Light – Moderate").
+function varSpan(p, x, y){
+  const L = varList(p), n = L.length, ix = v => p.dir === 'desc' ? n - v : v - 1;
+  const [a, b] = [ix(x), ix(y)].sort((m, k) => m - k);
+  return a === b ? labOfNum(p, x) : `${L[a] ? L[a].t : '?'} – ${L[b] ? L[b].t : '?'}`;
+}
+// Numeric value of the current design input (variable inputs hold a label id).
+const inVal = p => isVar(p) ? vnum(p, S.inputs[p.id]) : S.inputs[p.id];
+// Display text for a product's range on a parameter.
+function rangeText(pr, p){
+  if (isBool(p)) return pr.flags[p.id] ? BL[pr.flags[p.id]] : '—';
+  const r = rng(pr, p);
+  if (!r) return '—';
+  if (isVar(p)) return varSpan(p, r[0], r[1]);
+  return fmt(r[0]) + '–' + fmt(r[1]);
+}
 // Precision of typed and product values: cm 0.1; % user precision; Number 1 / 0.1 / 0.02.
 function resOf(p){
   if (p.type === 'cm') return 0.1;
@@ -310,13 +347,6 @@ function roundP(p, v){ if (v == null) return null; const d = prec(p); return d =
 // Snap a value to the parameter's precision (or nearest defined value) using a rounding mode.
 function snap(p, v, mode = 'nearest'){
   if (v == null) return null;
-  if (isVar(p)) {
-    const vals = [...varVals(p)].sort((a, b) => a - b);
-    if (!vals.length) return v;
-    if (mode === 'up') return vals.find(x => x >= v - 1e-9) ?? vals.at(-1);
-    if (mode === 'down') return [...vals].reverse().find(x => x <= v + 1e-9) ?? vals[0];
-    return vals.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
-  }
   const r = resOf(p);
   if (!r) return v;
   const q = v / r, n = mode === 'up' ? Math.ceil(q - 1e-9) : mode === 'down' ? Math.floor(q + 1e-9) : Math.round(q);
@@ -325,13 +355,13 @@ function snap(p, v, mode = 'nearest'){
 const roundIn = (p, v) => snap(p, v, 'nearest');
 // Allowable limits: % defaults to 0–100; Variable uses the lowest and highest defined value.
 function limits(p){
-  if (isVar(p)) { const v = varVals(p); return v.length ? [Math.min(...v), Math.max(...v)] : [null, null]; }
+  if (isVar(p)) { const n = varList(p).length; return n ? [1, n] : [null, null]; }
   return [p.min ?? (p.type === 'percent' ? 0 : null), p.max ?? (p.type === 'percent' ? 100 : null)];
 }
 // Product values: snap to precision (or nearest defined value), then keep within the allowable range.
 function conformValue(p, v){
   if (v == null || isBool(p)) return v;
-  if (isVar(p)) return snap(p, v);
+  if (isVar(p)) return vIdx(p, v) >= 0 ? v : null;
   let x = snap(p, v); const [lo, hi] = limits(p);
   if (lo != null && x < lo) x = snap(p, lo, 'up');
   if (hi != null && x > hi) x = snap(p, hi, 'down');
@@ -341,14 +371,14 @@ const conforms = (p, v) => v == null || conformValue(p, v) === v;
 function resText(p){
   if (p.type === 'cm') return '0.1 cm';
   if (p.type === 'percent') return `precision ${resOf(p)}%, step ${stepOf(p)}%`;
-  if (isVar(p)) return `Variable (${varVals(p).length} values)`;
+  if (isVar(p)) return `Variable (${varList(p).length} values, ${p.dir === 'desc' ? 'descending' : 'ascending'})`;
   if (p.type === 'number') return `resolution ${resOf(p)}`;
   return 'Yes / No';
 }
 function ruleText(p){
   const r = p.type === 'cm' ? 'Steps of 0.1 cm' : p.type === 'percent' ? `Steps of ${resOf(p)}%`
-    : isVar(p) ? 'One of the defined values' : p.type === 'number' ? (resOf(p) === 1 ? 'Whole numbers' : `Steps of ${resOf(p)}`) : 'Any value';
-  if (isVar(p)) return `${r} (${varVals(p).map(fmt).join(', ')})`;
+    : isVar(p) ? 'One of the listed values' : p.type === 'number' ? (resOf(p) === 1 ? 'Whole numbers' : `Steps of ${resOf(p)}`) : 'Any value';
+  if (isVar(p)) return `${r} (${varList(p).map(v => v.t).join(', ')})`;
   const [lo, hi] = limits(p);
   return lo != null || hi != null ? `${r} within ${fmt(lo)} – ${fmt(hi)}` : r;
 }
@@ -400,7 +430,8 @@ function wOf(pr, p){ const r = relOf(pr, p); return r.on ? r.w : 0; }
 // Yes/No: 100% when the product allows the selected answer, otherwise 0%.
 // Overall = weighted average using each product's weights (0 / not relevant = excluded).
 function rng(pr, p){
-  const r = pr.ranges[p.id];
+  let r = pr.ranges[p.id];
+  if (r && isVar(p)) r = [vnum(p, r[0]), vnum(p, r[1])];
   if (!r || r[0] == null || r[1] == null) return null;
   return [Math.min(r[0], r[1]), Math.max(r[0], r[1])];
 }
@@ -413,7 +444,7 @@ function productExtent(p){
 // Variable: one slider position per defined value, in list order.
 function sliderSpec(p){
   if (isVar(p)) {
-    const vals = varVals(p), [a, b] = limits(p);
+    const vals = varList(p), [a, b] = limits(p);
     return {isVar: true, vals, lo: 0, hi: Math.max(vals.length - 1, 0), step: 1, dec: 0, src: 'Values', rlo: a, rhi: b};
   }
   let lo = p.min, hi = p.max, src = 'Allowable';
@@ -442,12 +473,12 @@ function refSpan(p){
   return e[1] - e[0] > 0 ? e[1] - e[0] : Math.max(Math.abs(e[1]), 1);
 }
 function rank(){
-  const act = S.parameters.filter(p => S.inputs[p.id] != null);
+  const act = S.parameters.filter(p => inVal(p) != null);
   const spans = {}; act.forEach(p => { if (!isBool(p)) spans[p.id] = refSpan(p); });
   const res = S.products.map(pr => {
     let ws = 0, ss = 0, within = 0, n = 0; const fits = {};
     act.forEach(p => {
-      const v = S.inputs[p.id], w = wOf(pr, p);
+      const v = inVal(p), w = wOf(pr, p);
       let s = 0, st = 'missing', d = null, r = null;
       if (isBool(p)) {
         r = pr.flags[p.id] || null;
@@ -478,9 +509,9 @@ function issues(){
     seen.add(n.toLowerCase());
     if (p.min != null && p.max != null && p.min > p.max) out.push(`${n}: allowable minimum exceeds maximum.`);
     if (isVar(p)) {
-      const v = varVals(p);
-      if (v.length < 2) out.push(`${n}: Variable resolution needs at least two values.`);
-      if (v.some((x, i) => i && x < v[i - 1])) out.push(`${n}: values are not in ascending order; the slider follows the list order.`);
+      const L = varList(p);
+      if (L.length < 2) out.push(`${n}: Variable resolution needs at least two values.`);
+      if (new Set(L.map(v => v.t.toLowerCase())).size !== L.length) out.push(`${n}: listed values must be unique.`);
     }
   });
   S.products.forEach(pr => S.parameters.forEach(p => {
@@ -491,9 +522,9 @@ function issues(){
     }
     const raw = pr.ranges[p.id] || [null, null];
     if (raw[0] == null || raw[1] == null) { out.push(`${pr.name}: no complete range for ${p.name}; this parameter scores 0% for this product.`); return; }
-    if (raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
+    if (!isVar(p) && raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
     const r = rng(pr, p);
-    if (!conforms(p, raw[0]) || !conforms(p, raw[1])) out.push(`${pr.name}: ${p.name} ${fmt(r[0])}–${fmt(r[1])} does not match the parameter (${ruleText(p).toLowerCase()}).`);
+    if (!conforms(p, raw[0]) || !conforms(p, raw[1])) out.push(`${pr.name}: ${p.name} ${rangeText(pr, p)} does not match the parameter (${ruleText(p).toLowerCase()}).`);
   }));
   return out;
 }
@@ -662,7 +693,7 @@ function renderMatch(){
   });
   // Variable values: tap a value to select it
   view.querySelectorAll('[data-vp]').forEach(b => b.onclick = () => {
-    const p = P(b.dataset.vp), v = varVals(p)[Number(b.dataset.vi)];
+    const p = P(b.dataset.vp), v = varList(p)[Number(b.dataset.vi)].id;
     syncSlider(p.id, v); setInput(p.id, v);
   });
   // Yes / No radio buttons (tap the selected one again to clear it)
@@ -673,7 +704,7 @@ function renderMatch(){
   // Slider -> value (moves at the parameter's resolution)
   view.querySelectorAll('[data-s]').forEach(el => el.addEventListener('input', () => {
     const id = el.dataset.s, sp = sliderSpec(P(id));
-    const v = sp.isVar ? sp.vals[Number(el.value)] : Number(Number(el.value).toFixed(sp.dec));
+    const v = sp.isVar ? sp.vals[Number(el.value)].id : Number(Number(el.value).toFixed(sp.dec));
     el.classList.remove('unset');
     setInput(id, v);
   }));
@@ -690,20 +721,14 @@ function syncSlider(id, v){
   s.classList.toggle('unset', v == null);
   if (v == null) return;
   const p = P(id);
-  if (isVar(p)) s.value = varIndex(p, v);
+  if (isVar(p)) s.value = Math.max(0, vIdx(p, v));
   else s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
-}
-// Index of the defined value closest to v (list order).
-function varIndex(p, v){
-  const vals = varVals(p); let best = 0;
-  vals.forEach((x, i) => { if (Math.abs(x - v) < Math.abs(vals[best] - v)) best = i; });
-  return best;
 }
 // Highlight the selected value in the strip and bring it into view.
 function showVar(p, v, smooth){
   const strip = view.querySelector(`[data-strip="${p.id}"]`);
   if (!strip) return;
-  const idx = v == null ? -1 : varIndex(p, v);
+  const idx = v == null ? -1 : vIdx(p, v);
   strip.querySelectorAll('.vchip').forEach((c, i) => c.classList.toggle('on', i === idx));
   const c = strip.children[idx];
   if (c) strip.scrollTo({left: c.offsetLeft - strip.clientWidth / 2 + c.offsetWidth / 2, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'});
@@ -722,17 +747,17 @@ function inputCard(p){
     </div>`;
   }
   const sp = sliderSpec(p);
-  const pos = sp.isVar ? (v == null ? Math.floor(sp.hi / 2) : varIndex(p, v))
+  const pos = sp.isVar ? (vIdx(p, v) < 0 ? Math.floor(sp.hi / 2) : vIdx(p, v))
     : v == null ? Number((sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step).toFixed(sp.dec)) : Math.min(sp.hi, Math.max(sp.lo, v));
   const below = sp.isVar
-    ? `<div class="vstrip" data-strip="${p.id}">${sp.vals.map((x, i) => `<button class="vchip" data-vp="${p.id}" data-vi="${i}">${fmt(x)}</button>`).join('')}</div>`
+    ? `<div class="vstrip" data-strip="${p.id}">${sp.vals.map((x, i) => `<button class="vchip" data-vp="${p.id}" data-vi="${i}">${esc(x.t)}</button>`).join('')}</div>`
     : `<div class="ends"><span>${fmt(sp.lo)}</span><span class="val" data-val="${p.id}">${v == null ? '—' : fmt(v)}</span><span>${fmt(sp.hi)}</span></div>`;
   return `<div class="card inp">${top}
     <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
     ${below}
     <div class="bot"><span class="xsmall" data-hint="${p.id}"></span><span class="spacer"></span><span class="xsmall muted">${esc(p.unit)}</span>
-      <button class="dots" data-dots="${p.id}" aria-label="Enter ${esc(p.name)} manually">⋯</button></div>
-    <div class="manual" data-man="${p.id}"><input type="number" step="${resOf(p) || 'any'}" data-in="${p.id}" value="" placeholder="Enter value (${ROUND[p.round].toLowerCase()})" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>
+      ${sp.isVar ? '' : `<button class="dots" data-dots="${p.id}" aria-label="Enter ${esc(p.name)} manually">⋯</button>`}</div>
+    ${sp.isVar ? '' : `<div class="manual" data-man="${p.id}"><input type="number" step="${resOf(p) || 'any'}" data-in="${p.id}" value="" placeholder="Enter value (${ROUND[p.round].toLowerCase()})" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>`}
   </div>`;
 }
 function updateMatch(){
@@ -742,7 +767,10 @@ function updateMatch(){
     const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), sp = sliderSpec(p);
     const out = !isVar(p) && v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
     if (isVar(p)) showVar(p, v, true);
-    if (h) {
+    if (h && isVar(p)) {
+      h.className = 'xsmall muted';
+      h.textContent = `Numbered ${p.dir === 'desc' ? 'descending' : 'ascending'} · Default: ${p.def != null && vlabel(p, p.def) != null ? vlabel(p, p.def) : 'none'}`;
+    } else if (h) {
       h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
       h.textContent = (out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.rlo)} – ${fmt(sp.rhi)}`)
         + ` · Default: ${p.def == null ? 'none' : fmt(p.def)}`;
@@ -788,7 +816,7 @@ function updateMatch(){
       let val;
       if (!rel) val = 'N/A';
       else if (isBool(p)) val = r.pr.flags[p.id] ? BL[r.pr.flags[p.id]] : '—';
-      else { const rr = rng(r.pr, p); val = rr ? fmt(rr[0]) + '–' + fmt(rr[1]) : '—'; }
+      else val = esc(rangeText(r.pr, p));
       return `<div class="chip ${!rel ? 'na' : f ? f.st : ''}"><span class="muted">${esc(p.name)}</span><b>${val}</b></div>`;
     }).join('');
     return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
@@ -814,15 +842,15 @@ function fitRow(p, f){
       <span class="st c-${st}">${txt}</span></div></div>`;
   }
   const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Within range' : f.st === 'missing' ? 'No data'
-    : (f.d < 0 ? 'Below by ' : 'Above by ') + fmt(Math.abs(f.d)) + (p.unit ? ' ' + p.unit : '');
-  const sp = sliderSpec(p), e = productExtent(p);
-  let lo = Math.min(sp.lo, e ? e[0] : sp.lo, f.v), hi = Math.max(sp.hi, e ? e[1] : sp.hi, f.v);
+    : (f.d < 0 ? 'Below by ' : 'Above by ') + fmt(Math.abs(f.d)) + (isVar(p) ? (Math.abs(f.d) === 1 ? ' position' : ' positions') : p.unit ? ' ' + p.unit : '');
+  const sp = sliderSpec(p), e = productExtent(p), d0 = sp.isVar ? sp.rlo : sp.lo, d1 = sp.isVar ? sp.rhi : sp.hi;
+  let lo = Math.min(d0, e ? e[0] : d0, f.v), hi = Math.max(d1, e ? e[1] : d1, f.v);
   if (hi <= lo) hi = lo + 1;
   const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
   const pos = x => ((x - lo) / (hi - lo) * 100).toFixed(2);
   const band = f.r && !f.excluded ? `<div class="band" style="left:${pos(f.r[0])}%;width:${Math.max(pos(f.r[1]) - pos(f.r[0]), 1.5)}%"></div>` : '';
   return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
-    <span class="xsmall muted">${f.r && !f.excluded ? fmt(f.r[0]) + '–' + fmt(f.r[1]) + ' ' + esc(p.unit) + ' · ' : ''}${wl}</span>
+    <span class="xsmall muted">${f.r && !f.excluded ? (isVar(p) ? esc(varSpan(p, f.r[0], f.r[1])) : fmt(f.r[0]) + '–' + fmt(f.r[1]) + ' ' + esc(p.unit)) + ' · ' : ''}${wl}</span>
     <span class="st c-${st}">${esc(txt)}</span></div>
     <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div></div>`;
 }
@@ -832,9 +860,9 @@ function renderParams(box, act){
   const n = S.parameters.length;
   const cards = n ? S.parameters.map((p, i) => listCard(p.id, i, n, p.name, '', false, p.details,
       chip('Type', esc(TYPES[p.type].label.split(' ')[0])) +
-      (isBool(p) ? chip('Values', 'Yes / No') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`)) +
+      (isBool(p) ? chip('Values', 'Yes / No') : isVar(p) ? chip('Values', esc(varList(p).map(v => v.t).join(', ')) || '—') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`)) +
       (isBool(p) ? '' : chip('Resolution', esc(resText(p)))) +
-      chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : fmt(p.def)) +
+      chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : isVar(p) ? esc(vlabel(p, p.def) ?? '—') : fmt(p.def)) +
       chip('Weight', p.weight))).join('')
     : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
   act.innerHTML = '<button class="btn primary" id="addP">+ Add</button>';
@@ -871,9 +899,9 @@ function renderParams(box, act){
   };
 }
 function editParam(id){
-  const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, def: null, weight: 5, details: '', res: 1, step: 25, vals: [], round: 'nearest'};
-  // Working copy of the custom values (strings while editing).
-  let vals = (p.vals || []).map(String);
+  const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, def: null, weight: 5, details: '', res: 1, step: 25, vals: [], dir: 'asc', round: 'nearest'};
+  // Working copy of the listed values (text labels) and numbering direction.
+  let vals = varList(p).map(v => ({id: v.id, t: v.t})), dir = p.dir === 'desc' ? 'desc' : 'asc';
   const enabledNow = pr => { const r = relOf(pr, p); return !!id && r.on && r.w > 0; };
   const enableList = S.products.length ? `
     <details class="field en" ${id ? '' : 'open'}><summary>Enable for products (<span id="enCount"></span>)</summary>
@@ -888,24 +916,24 @@ function editParam(id){
     <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
     <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
     <div class="field" id="unitWrap"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="Optional (e.g., count, days)"></div>
+    <div class="field" id="rangeWrap"><label id="rangeLabel">Allowable range (optional)</label>
+      <div class="pair"><input id="fMin" type="number" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${plain(p.max)}" placeholder="Maximum"></div>
+      <div class="xsmall muted" id="rangeNote" style="margin:5px 2px"></div></div>
     <div class="field" id="resWrap"><label>Resolution</label>
       <select id="fRes">${NUM_RES.map(r => `<option value="${r}" ${numRes === r ? 'selected' : ''}>${r === 'var' ? 'Variable (defined values)' : r}</option>`).join('')}</select></div>
     <div class="field" id="pctWrap"><label>Precision and slider step</label>
       <div class="pair"><select id="fPrec">${PCT_PREC.map(r => `<option value="${r}" ${pctRes === r ? 'selected' : ''}>Precision ${r}%</option>`).join('')}</select>
         <span>step</span><input id="fStep" type="number" min="0" value="${p.type === 'percent' ? plain(p.step) : '25'}" placeholder="25"></div>
       <div class="xsmall muted" style="margin:5px 2px">Precision applies to typed and product values. The slider moves in steps of the step value.</div></div>
-    <div class="field" id="rangeWrap"><label id="rangeLabel">Allowable range (optional)</label>
-      <div class="pair"><input id="fMin" type="number" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${plain(p.max)}" placeholder="Maximum"></div>
-      <div class="xsmall muted" id="rangeNote" style="margin:5px 2px"></div></div>
     <div class="field" id="valsWrap"><label>Values (<span id="valCount">0</span>)</label>
       <div id="valList"></div>
-      <div class="pair" style="margin-top:6px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="sortVals" style="flex:1">Sort ascending</button></div>
-      <div class="xsmall muted" style="margin:5px 2px">The Match slider steps through these values in this order. Product ranges are selected from them.</div></div>
+      <div class="pair" style="margin-top:6px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="dirBtn" style="flex:1"></button></div>
+      <div class="xsmall muted" style="margin:5px 2px">Each value is numbered by its position in the list; the number is used for matching. The numbering button switches between ascending and descending without changing the order. The Match slider follows the list order.</div></div>
     <div class="field" id="roundWrap"><label>Manual entry rounding</label>
       <select id="fRound">${Object.entries(ROUND).map(([k, t]) => `<option value="${k}" ${p.round === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <div class="xsmall muted" style="margin:5px 2px" id="roundNote"></div></div>
     <div class="field" id="defNumWrap"><label>Default value (optional)</label>
-      <input id="fDef" type="number" value="${isBool(p) || isVar(p) ? '' : plain(p.def)}" placeholder="None">
+      <input id="fDef" type="number" value="${isBool(p) || isVar(p) || typeof p.def !== 'number' ? '' : plain(p.def)}" placeholder="None">
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab. Snaps to the precision and allowable range.</div></div>
     <div class="field" id="defVarWrap"><label>Default value (optional)</label><select id="fDefV"></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
@@ -928,11 +956,10 @@ function editParam(id){
       if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return 'A parameter with this name already exists.';
       let min = null, max = null, step = null, nv = [];
       if (variable) {
-        nv = vals.map(num);
-        if (nv.some(x => x == null)) return 'Every value must be a number. Delete empty rows.';
+        nv = vals.map(v => ({id: v.id, t: v.t.trim()}));
+        if (nv.some(v => !v.t)) return 'Every listed value needs text. Delete empty rows.';
         if (nv.length < 2) return 'Enter at least two values.';
-        if (new Set(nv).size !== nv.length) return 'Values must be unique.';
-        if (nv.some((x, i) => i && x < nv[i - 1]) && !confirm('The values are not in ascending order. The slider follows the list order, while product ranges compare values numerically. Save anyway?')) return 'Use Sort ascending, or reorder the values.';
+        if (new Set(nv.map(v => v.t.toLowerCase())).size !== nv.length) return 'Listed values must be unique.';
       } else if (type !== 'boolean') {
         min = roundP(probe, num($('#fMin').value)); max = roundP(probe, num($('#fMax').value));
         if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
@@ -944,7 +971,7 @@ function editParam(id){
         step = Math.max(res, Math.round(step / res) * res); step = Number(step.toFixed(decOf(res)));
       }
       const def = type === 'boolean' ? ($('#fDefB').value || null)
-        : variable ? num($('#fDefV').value)
+        : variable ? ($('#fDefV').value || null)
         : conformValue({type, res, min, max}, num($('#fDef').value));
       if (id && isBool(p) !== (type === 'boolean')) {
         if (!confirm('Changing between Yes/No and a numeric type clears this parameter\'s product values and current input. Continue?')) return 'Type change cancelled.';
@@ -952,9 +979,18 @@ function editParam(id){
         delete S.inputs[p.id];
       }
       Object.assign(p, {name, type, unit: type === 'boolean' ? '' : (t.unit || $('#fUnit').value.trim()), min, max, def,
-        res: res ?? p.res, step: step ?? p.step, vals: variable ? nv : [], round: type === 'boolean' ? 'nearest' : $('#fRound').value,
+        res: res ?? p.res, step: step ?? p.step, vals: variable ? nv : [], dir: variable ? dir : 'asc',
+        round: type === 'boolean' || variable ? 'nearest' : $('#fRound').value,
         weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
-      if (typeof S.inputs[p.id] === 'number') S.inputs[p.id] = conformValue(p, S.inputs[p.id]);
+      // Keep references valid: deleted labels are cleared from products and the current input.
+      if (variable) {
+        if (vIdx(p, S.inputs[p.id]) < 0) delete S.inputs[p.id];
+        S.products.forEach(pr => { const r = pr.ranges[p.id]; if (r) pr.ranges[p.id] = [vIdx(p, r[0]) < 0 ? null : r[0], vIdx(p, r[1]) < 0 ? null : r[1]]; });
+      } else {
+        if (typeof S.inputs[p.id] === 'string' && !isBool(p)) delete S.inputs[p.id];
+        S.products.forEach(pr => { const r = pr.ranges[p.id]; if (r && (typeof r[0] === 'string' || typeof r[1] === 'string')) delete pr.ranges[p.id]; });
+        if (typeof S.inputs[p.id] === 'number') S.inputs[p.id] = conformValue(p, S.inputs[p.id]);
+      }
       if (!id) S.parameters.push(p);
       // Enable for selected products (values are entered by the user on the Products tab).
       let missing = 0;
@@ -974,44 +1010,42 @@ function editParam(id){
     },
     () => {
       const isVarSel = () => $('#fType').value === 'number' && $('#fRes').value === 'var';
-      // ----- custom values list (add, move, duplicate, delete) -----
+      // ----- listed values (add, move, duplicate, delete) -----
+      const numFor = i => dir === 'desc' ? vals.length - i : i + 1;
       const drawVals = () => {
         const n = vals.length;
         $('#valList').innerHTML = n ? vals.map((v, i) => `<div class="card lcard vrow" data-vrow="${i}">
             <div class="mv"><button type="button" data-va="up" data-i="${i}" ${i ? '' : 'disabled'} aria-label="Move up">▲</button><button type="button" data-va="down" data-i="${i}" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">▼</button></div>
-            <div class="vbody"><input type="number" step="any" data-vin="${i}" value="${esc(v)}" placeholder="Value ${i + 1}"></div>
+            <div class="vbody"><span class="vnum">${numFor(i)}</span><input type="text" data-vin="${i}" value="${esc(v.t)}" placeholder="Value text"></div>
             <div class="acts"><button type="button" data-va="dup" data-i="${i}">Duplicate</button><button type="button" class="danger" data-va="del" data-i="${i}">Delete</button></div>
           </div>`).join('') : '<div class="card muted small" style="margin:0">No values yet. Select + Add value.</div>';
         $('#valCount').textContent = n;
+        $('#dirBtn').textContent = dir === 'desc' ? 'Numbering: descending ⇅' : 'Numbering: ascending ⇅';
         refreshVarUI();
       };
       const refreshVarUI = () => {
-        const nv = vals.map(num).filter(x => x != null);
-        if (isVarSel()) {
-          $('#fMin').value = nv.length ? Math.min(...nv) : ''; $('#fMax').value = nv.length ? Math.max(...nv) : '';
-        }
-        const cur = $('#fDefV').value !== '' ? $('#fDefV').value : (isVar(p) && p.def != null ? String(p.def) : '');
-        $('#fDefV').innerHTML = '<option value="">None</option>' + [...new Set(nv)].map(x => `<option value="${x}" ${String(x) === cur ? 'selected' : ''}>${fmt(x)}</option>`).join('');
+        if (isVarSel()) { $('#fMin').value = vals.length ? 1 : ''; $('#fMax').value = vals.length || ''; }
+        const cur = $('#fDefV').value || (isVar(p) && p.def != null ? p.def : '');
+        $('#fDefV').innerHTML = '<option value="">None</option>' + vals.filter(v => v.t.trim()).map(v => `<option value="${v.id}" ${v.id === cur ? 'selected' : ''}>${esc(v.t)}</option>`).join('');
       };
       $('#valList').onclick = e => {
         const b = e.target.closest('[data-va]'); if (!b) return;
         const i = Number(b.dataset.i), a = b.dataset.va;
         if (a === 'up' && i > 0) [vals[i - 1], vals[i]] = [vals[i], vals[i - 1]];
         if (a === 'down' && i < vals.length - 1) [vals[i + 1], vals[i]] = [vals[i], vals[i + 1]];
-        if (a === 'dup') vals.splice(i + 1, 0, vals[i]);
+        if (a === 'dup') vals.splice(i + 1, 0, {id: uid('v'), t: vals[i].t + ' (copy)'});
         if (a === 'del') vals.splice(i, 1);
         drawVals();
         const focus = a === 'dup' ? i + 1 : a === 'up' ? i - 1 : a === 'down' ? i + 1 : null;
         if (focus != null) { const r = document.querySelector(`[data-vrow="${focus}"]`); if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); } }
       };
-      $('#valList').oninput = e => { const i = e.target.dataset.vin; if (i != null) { vals[Number(i)] = e.target.value; refreshVarUI(); } };
+      $('#valList').oninput = e => { const i = e.target.dataset.vin; if (i != null) { vals[Number(i)].t = e.target.value; refreshVarUI(); } };
       $('#addVal').onclick = () => {
-        const nv = vals.map(num).filter(x => x != null);
-        vals.push(nv.length ? String(Math.max(...nv) + 1) : '');
+        vals.push({id: uid('v'), t: ''});
         drawVals();
-        const inp = document.querySelector(`[data-vin="${vals.length - 1}"]`); if (inp) { inp.focus(); inp.select(); }
+        const inp = document.querySelector(`[data-vin="${vals.length - 1}"]`); if (inp) inp.focus();
       };
-      $('#sortVals').onclick = () => { vals.sort((a, b) => (num(a) ?? Infinity) - (num(b) ?? Infinity)); drawVals(); };
+      $('#dirBtn').onclick = () => { dir = dir === 'desc' ? 'asc' : 'desc'; drawVals(); };
       // ----- type-dependent fields -----
       const apply = () => {
         const type = $('#fType').value, t = TYPES[type], variable = isVarSel();
@@ -1021,7 +1055,7 @@ function editParam(id){
         show('#pctWrap', type === 'percent');
         show('#rangeWrap', type !== 'boolean');
         show('#valsWrap', variable);
-        show('#roundWrap', type !== 'boolean');
+        show('#roundWrap', type !== 'boolean' && !variable);
         show('#defNumWrap', type !== 'boolean' && !variable);
         show('#defVarWrap', variable);
         show('#defBoolWrap', type === 'boolean');
@@ -1032,14 +1066,13 @@ function editParam(id){
         const res = type === 'cm' ? 0.1 : type === 'percent' ? Number($('#fPrec').value) : variable ? 'any' : Number($('#fRes').value);
         $('#fMin').step = $('#fMax').step = $('#fDef').step = res;
         $('#fStep').step = type === 'percent' ? Number($('#fPrec').value) : 'any';
-        $('#rangeLabel').textContent = variable ? 'Allowable range (set by the values below)' : type === 'number' ? 'Allowable range' : 'Allowable range (optional)';
-        $('#rangeNote').textContent = variable ? 'Lowest and highest of the defined values.'
+        $('#rangeLabel').textContent = variable ? 'Allowable range (positions in the list below)' : type === 'number' ? 'Allowable range' : 'Allowable range (optional)';
+        $('#rangeNote').textContent = variable ? 'Set by the number of listed values.'
           : type === 'percent' ? 'Defaults to 0 – 100; can be changed. The slider moves in steps of the step value.'
           : type === 'cm' ? 'Values are in cm to the nearest 0.1. The slider moves in 0.1 cm steps.'
           : `Required. The slider moves in steps of ${res}.`;
         const r = $('#fRound').value;
-        $('#roundNote').textContent = variable ? `A typed value moves to the ${r === 'up' ? 'next higher' : r === 'down' ? 'next lower' : 'closest'} defined value.`
-          : `A typed value is rounded ${r === 'up' ? 'up' : r === 'down' ? 'down' : 'to the nearest'} ${type === 'cm' ? '0.1 cm' : type === 'percent' ? $('#fPrec').value + '%' : res}.`;
+        $('#roundNote').textContent = `A typed value is rounded ${r === 'up' ? 'up' : r === 'down' ? 'down' : 'to the nearest'} ${type === 'cm' ? '0.1 cm' : type === 'percent' ? $('#fPrec').value + '%' : res}.`;
         if (variable) refreshVarUI();
       };
       // Snap the default to the precision and range when leaving the field.
@@ -1074,7 +1107,7 @@ function renderProducts(box, act){
       const done = relP.filter(p => isBool(p) ? pr.flags[p.id] : rng(pr, p)).length, na = S.parameters.length - relP.length;
       const chips = S.parameters.map(p => {
         const rel = relOf(pr, p), on = rel.on && rel.w > 0;
-        let val; if (!on) val = 'N/A'; else if (isBool(p)) val = pr.flags[p.id] ? BL[pr.flags[p.id]] : '—'; else { const r = rng(pr, p); val = r ? fmt(r[0]) + '–' + fmt(r[1]) : '—'; }
+        const val = on ? esc(rangeText(pr, p)) : 'N/A';
         return chip(esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na');
       }).join('');
       return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '');
@@ -1119,7 +1152,7 @@ function editProduct(id){
         <option value="either" ${f === 'either' ? 'selected' : ''}>Either (Yes or No)</option></select>`;
     } else if (isVar(p)) {
       const r = pr.ranges[p.id] || [null, null];
-      const opts = sel => '<option value="">—</option>' + varVals(p).map(x => `<option value="${x}" ${sel === x ? 'selected' : ''}>${fmt(x)}</option>`).join('');
+      const opts = sel => '<option value="">—</option>' + varList(p).map(x => `<option value="${x.id}" ${sel === x.id ? 'selected' : ''}>${esc(x.t)} (${vnum(p, x.id)})</option>`).join('');
       body = `<div class="pair"><select data-lo="${p.id}">${opts(r[0])}</select><span>to</span><select data-hi="${p.id}">${opts(r[1])}</select></div>`;
     } else {
       const r = pr.ranges[p.id] || [null, null], step = resOf(p) || 'any';
@@ -1157,8 +1190,8 @@ function editProduct(id){
         rel[p.id] = {on, w: on ? w : (w == null ? p.weight : w)};
         if (isBool(p)) { const v = document.querySelector(`[data-bv="${p.id}"]`).value; if (v) flags[p.id] = v; }
         else {
-          const lo = conformValue(p, num(document.querySelector(`[data-lo="${p.id}"]`).value));
-          const hi = conformValue(p, num(document.querySelector(`[data-hi="${p.id}"]`).value));
+          const rv = sel => { const v = document.querySelector(sel).value; return isVar(p) ? (v || null) : conformValue(p, num(v)); };
+          const lo = rv(`[data-lo="${p.id}"]`), hi = rv(`[data-hi="${p.id}"]`);
           if (lo != null || hi != null) ranges[p.id] = [lo, hi];
         }
       }
@@ -1172,7 +1205,10 @@ function editProduct(id){
         const pf = q(`[data-pf="${p.id}"]`), on = q(`[data-rel="${p.id}"]`).checked;
         let empty, sum;
         if (isBool(p)) { const v = q(`[data-bv="${p.id}"]`).value; empty = !v; sum = v ? BL[v] : 'No value'; }
-        else {
+        else if (isVar(p)) {
+          const a = q(`[data-lo="${p.id}"]`).value, b = q(`[data-hi="${p.id}"]`).value;
+          empty = !(a && b); sum = empty ? 'No values' : varSpan(p, vnum(p, a), vnum(p, b));
+        } else {
           const lo = num(q(`[data-lo="${p.id}"]`).value), hi = num(q(`[data-hi="${p.id}"]`).value);
           empty = !(lo != null && hi != null); sum = empty ? 'No values' : `${fmt(lo)} – ${fmt(hi)}${p.unit ? ' ' + p.unit : ''}`;
         }
@@ -1180,6 +1216,11 @@ function editProduct(id){
         q(`[data-psum="${p.id}"]`).textContent = on ? sum : 'Not relevant';
         const w = q(`[data-pwarn="${p.id}"]`);
         if (isBool(p)) { w.textContent = ''; return; }
+        if (isVar(p)) {
+          const a = q(`[data-lo="${p.id}"]`).value, b = q(`[data-hi="${p.id}"]`).value;
+          w.textContent = !a !== !b ? 'Select both a lower and an upper value.' : 'Select from the listed values; the number in brackets is its position.';
+          w.className = 'xsmall ' + (!a !== !b ? 'warn-text' : 'muted'); return;
+        }
         const lo = num(q(`[data-lo="${p.id}"]`).value), hi = num(q(`[data-hi="${p.id}"]`).value);
         let m = '', warn = true;
         if ((lo == null) !== (hi == null)) m = 'Enter both a lower and an upper value.';
@@ -1249,7 +1290,8 @@ function renderData(box){
 /* ======================= CSV ======================= */
 // [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description
 //   Resolution: Number = 1 / 0.1 / 0.02 / Variable; % = precision (1 / 0.1 / 0.01). Step: % slider step.
-//   Values: Variable values separated by semicolons. Rounding: Nearest / Round up / Round down.
+//   Values: Variable text values separated by semicolons; Numbering: Ascending / Descending.
+//   Rounding: Nearest / Round up / Round down. Product cells for Variable parameters hold the value text.
 // [PRODUCTS]   Product, Description, Link, then per parameter:
 //   Type: cm | % | Y/N   (Number accepted for older files)
 // [PRODUCTS]   Product, Notes, then per parameter:
@@ -1267,14 +1309,15 @@ function parseType(t, unit){
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(){
   const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'],
-    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Rounding', 'Default', 'Weight', 'Description']];
+    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Rounding', 'Default', 'Weight', 'Description']];
   S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isVar(p) ? '' : plain(p.min), isVar(p) ? '' : plain(p.max),
     isBool(p) ? '' : isVar(p) ? 'Variable' : plain(resOf(p)),
     p.type === 'percent' ? plain(stepOf(p)) : '',
-    isVar(p) ? varVals(p).join('; ') : '',
-    isBool(p) ? '' : ROUND[p.round],
-    p.def == null ? '' : isBool(p) ? BL[p.def] : plain(p.def), plain(p.weight), p.details]));
+    isVar(p) ? varList(p).map(v => v.t).join('; ') : '',
+    isVar(p) ? (p.dir === 'desc' ? 'Descending' : 'Ascending') : '',
+    isBool(p) || isVar(p) ? '' : ROUND[p.round],
+    p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
   const h = ['Product', 'Description', 'Link'];
   S.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
@@ -1283,6 +1326,7 @@ function toCSV(){
     const r = [pr.name, pr.notes, pr.link || ''];
     S.parameters.forEach(p => {
       if (isBool(p)) r.push(pr.flags[p.id] ? BL[pr.flags[p.id]] : '');
+      else if (isVar(p)) { const v = pr.ranges[p.id] || [null, null]; r.push(vlabel(p, v[0]) ?? '', vlabel(p, v[1]) ?? ''); }
       else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
       r.push(plain(wOf(pr, p)));
     });
@@ -1312,6 +1356,8 @@ function splitBound(h){
 function fromCSV(text){
   const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
   let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, linkIdx = -1, adjusted = 0;
+  const unknown = new Set();
+  const labId = (p, t) => { t = String(t ?? '').trim().toLowerCase(); const v = varList(p).find(v => v.t.toLowerCase() === t); return t && v ? v.id : null; };
   const findP = name => out.parameters.find(x => x.name.toLowerCase() === name.toLowerCase());
   for (const row of rows) {
     if (row.every(x => !x.trim())) continue;
@@ -1326,7 +1372,7 @@ function fromCSV(text){
       if (findP(name)) { notes.push(`Duplicate parameter "${name}" was ignored.`); continue; }
       const unit = (col(['unit', 'units']) || '').trim(), type = parseType(col(['type']), unit);
       const rcol = String(col(['resolution', 'precision']) ?? '').trim().toLowerCase();
-      const valList = String(col(['values', 'custom values']) ?? '').split(/[;|]/).map(num).filter(x => x != null);
+      const valList = [...new Map(String(col(['values', 'custom values', 'listed values']) ?? '').split(/[;|]/).map(t => t.trim()).filter(Boolean).map(t => [t.toLowerCase(), t])).values()];
       let res = null;
       if (type === 'number') res = rcol.startsWith('var') || (!rcol && valList.length > 1) ? 'var' : NUM_RES.includes(String(num(rcol))) ? num(rcol) : 1;
       if (type === 'percent') res = PCT_PREC.includes(String(num(rcol))) ? num(rcol) : 1;
@@ -1338,11 +1384,12 @@ function fromCSV(text){
         min: type === 'boolean' || res === 'var' ? null : roundP(probe, num(col(['range min', 'min', 'minimum']))),
         max: type === 'boolean' || res === 'var' ? null : roundP(probe, num(col(['range max', 'max', 'maximum']))),
         res, step: type === 'percent' ? (num(col(['step', 'slider step'])) > 0 ? num(col(['step', 'slider step'])) : 25) : null,
-        vals: res === 'var' ? [...new Set(valList)] : [],
+        vals: res === 'var' ? valList.map(t => ({id: uid('v'), t})) : [],
+        dir: String(col(['numbering', 'order']) ?? '').toLowerCase().startsWith('desc') ? 'desc' : 'asc',
         round: rr.includes('up') ? 'up' : rr.includes('down') ? 'down' : 'nearest',
         weight: w, details: (col(['description', 'details']) || '').trim()});
       const np = out.parameters.at(-1), dv = col(['default', 'default value']);
-      np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : conformValue(np, num(dv));
+      np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : isVar(np) ? labId(np, dv) : conformValue(np, num(dv));
     }
     else if (section === '[PRODUCTS]') {
       if (!cols) {
@@ -1371,11 +1418,13 @@ function fromCSV(text){
         const c = row[i];
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
         else if (k === 'v') { if (isBool(p)) { const b = parseBool(c); if (b) pr.flags[p.id] = b; } }
+        else if (isVar(p)) { const r = pr.ranges[p.id] || [null, null], t = String(c ?? '').trim(); r[k] = labId(p, t); if (t && r[k] == null) unknown.add(`${p.name}: "${t}"`); pr.ranges[p.id] = r; }
         else if (!isBool(p)) { const r = pr.ranges[p.id] || [null, null], raw = num(c); r[k] = conformValue(p, raw); if (raw != null && r[k] !== raw) adjusted++; pr.ranges[p.id] = r; }
       });
       out.products.push(pr);
     }
   }
+  if (unknown.size) notes.push(`Values not in the parameter's list were left blank: ${[...unknown].slice(0, 5).join(', ')}${unknown.size > 5 ? '…' : ''}`);
   if (adjusted) notes.push(`${adjusted} product value(s) were adjusted to match their parameter's resolution and range.`);
   if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description).');
   return {data: out, notes};
@@ -1422,7 +1471,7 @@ function sample(){
   const params = [
     P0('Length', 'cm', {min: 0, max: 30, def: 5, weight: 8, details: 'Measured to the nearest 0.1 cm.'}),
     P0('Coverage', 'percent', {min: 0, max: 100, def: 50, weight: 6, res: 1, step: 25, details: 'Precision 1%, slider step 25%.'}),
-    P0('Changes per week', 'number', {unit: 'per week', res: 'var', vals: [1, 2, 3, 5, 7], def: 3, weight: 4, round: 'up', details: 'Defined values; typed entries round up.'}),
+    P0('Exudate level', 'number', {res: 'var', vals: ['None', 'Light', 'Moderate', 'Heavy'].map(t => ({id: uid('v'), t})), dir: 'asc', weight: 4, details: 'Listed values, numbered by position (None = 1 … Heavy = 4).'}),
     P0('Option Required', 'boolean', {def: 'no', weight: 9, details: 'Yes or No.'})
   ];
   const rows = [
@@ -1430,6 +1479,9 @@ function sample(){
     ['Product B', 'Example only', '', [5, 20], [25, 100], [2, 5], 'either', {}],
     ['Product C', 'Example only', 'https://example.com/product-c', [1, 15], [0, 75], [3, 7], 'yes', {3: {on: false, w: null}, 0: {on: true, w: 3}}]
   ];
+  const L = params[2].vals.map(v => v.id);   // None, Light, Moderate, Heavy
+  params[2].def = L[2];
+  rows[0][5] = [L[1], L[2]]; rows[1][5] = [L[2], L[3]]; rows[2][5] = [L[0], L[1]];
   const products = rows.map(r => {
     const rel = {}; Object.entries(r[7]).forEach(([i, v]) => rel[params[i].id] = v);
     return {id: uid('r'), name: r[0], notes: r[1], link: r[2], ranges: {[params[0].id]: r[3], [params[1].id]: r[4], [params[2].id]: r[5]}, flags: {[params[3].id]: r[6]}, rel};

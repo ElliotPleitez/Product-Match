@@ -34,10 +34,12 @@ All changes, inputs and weights are saved automatically on the device.
 Selected from the Type drop-down in the parameter editor:
 - **cm:** values to the nearest 0.1 cm; slider moves in 0.1 cm steps.
 - **%:** user-defined precision (1, 0.1 or 0.01%) and slider step (default 25%). Allowable range defaults to 0–100 and can be changed.
-- **Number:** resolution 1, 0.1 or 0.02 (allowable range required), or **Variable**: a user-defined list of values entered below the allowable range. Values are added, moved, duplicated and deleted like products; the allowable range is set by the lowest and highest value. On Match, the slider steps through the values in list order, the values are shown below the slider, and the selected value is highlighted and scrolled into view.
+- **Number:** resolution 1, 0.1 or 0.02 (allowable range required), or **Variable**: a list of text values (e.g. None, Light, Moderate, Heavy). Each value is numbered by its position in the list, and that number is used for matching. **Numbering** switches between ascending (first = 1) and descending (first = highest) without changing the list order. Values are added, moved, duplicated and deleted like products. On Match, the slider steps through the values in list order, the values are shown below the slider, and the selected value is highlighted and scrolled into view; manual entry and rounding do not apply.
 - **Y/N:** Yes / No radio buttons on the Match screen; the default is chosen from a drop-down. Each product is set to Yes, No or Either.
 
-**Manual entry rounding** (per parameter): Nearest, Round up or Round down. Applied when a value is typed on the Match screen (for Variable, to the next higher or lower defined value).
+**Manual entry rounding** (per parameter, not used for Variable): Nearest, Round up or Round down. Applied when a value is typed on the Match screen.
+
+Parameter editor order: Name, Type, Units, Allowable range, then Resolution or Precision and slider step, Values (Variable), Rounding, Default, Weight, Enable for products, Description.
 
 Product values follow the parameter's precision (or defined values) and stay within its allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's precision and range.
 
@@ -72,7 +74,7 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 ## CSV format
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
-- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Resolution (Number: 1 / 0.1 / 0.02 / Variable; %: precision), Step (% slider step), Values (Variable values separated by semicolons), Rounding (Nearest / Round up / Round down), Default, Weight, Description.
-- Products: Product, Description, Link, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Y/N parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
+- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Resolution (Number: 1 / 0.1 / 0.02 / Variable; %: precision), Step (% slider step), Values (Variable text values separated by semicolons), Numbering (Ascending / Descending), Rounding (Nearest / Round up / Round down), Default, Weight, Description.
+- Products: Product, Description, Link, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Variable parameters use the value text in Lower / Upper; Y/N parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - Older files without the newer columns still import.
 - In Excel, save as **CSV UTF-8**.
