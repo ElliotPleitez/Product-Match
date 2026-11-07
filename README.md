@@ -44,6 +44,12 @@ Product values follow the same resolution and stay within the parameter's allowa
 
 Parameters and products can be reordered with the ▲ / ▼ buttons on the left of each card; Duplicate and Delete are on the right. The screen stays in place while reordering. Section headings can be tapped to collapse or expand them. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
 
+## Defaults and enabling
+
+- Each parameter can have a default value (below the allowable range in the editor). **Reset to defaults** on the Match tab sets every input to its default; parameters without one are cleared.
+- The parameter editor lists all products under **Enable for products**. Checked products use the parameter; their values are entered by the user on the Products tab.
+- Products missing values for an enabled parameter are highlighted on the Products tab, and the missing fields are highlighted in the product editor.
+
 ## Weights and relevance
 
 - Each parameter has a default weight (0–10), shown on the Match screen as "Weight: #".
@@ -61,6 +67,6 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 ## CSV format
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
-- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Weight, Description.
+- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Default, Weight, Description.
 - Products: Product, Description, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - In Excel, save as **CSV UTF-8**.

@@ -2,10 +2,10 @@
 Title,Example Selector - replace with project data
 
 [PARAMETERS]
-Name,Type,Unit,Range Min,Range Max,Weight,Description
-Length,cm,cm,0,30,8,Measured to the nearest 0.1 cm.
-Coverage,%,%,0,100,6,Set in 25% increments.
-Option Required,Y/N,,,,9,Yes or No.
+Name,Type,Unit,Range Min,Range Max,Default,Weight,Description
+Length,cm,cm,0,30,5,8,Measured to the nearest 0.1 cm.
+Coverage,%,%,0,100,50,6,Set in 25% increments.
+Option Required,Y/N,,,,No,9,Yes or No.
 
 [PRODUCTS]
 Product,Description,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Option Required Value,Option Required Weight
