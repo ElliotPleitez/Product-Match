@@ -51,9 +51,9 @@ Changing the resolution redisplays the step at that resolution (never below it).
 
 **Manual entry rounding** (per parameter, not used for listed values): Nearest, Round up or Round down. Applied when a value is typed on the Match screen.
 
-Parameter editor order: Name, Type, Units, Allowable range, then Resolution or Precision and slider step, Values (Variable), Rounding, Default, Weight, Enable for products, Description.
+Parameter editor order: Name, Type, Units, Resolution and slider step, Values (listed), Allowable range, Rounding, Default, Weight, Enable for products, Description.
 
-Product values follow the parameter's precision (or defined values) and stay within its allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's precision and range.
+Product values follow the parameter's resolution (or listed values) and stay within its allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's resolution and range.
 
 Parameters and products can be reordered with the ▲ / ▼ buttons on the left of each card; Duplicate and Delete are on the right. The screen stays in place while reordering.
 
