@@ -32,22 +32,28 @@ All changes, inputs and weights are saved automatically on the device.
 ## Parameter types
 
 Selected from the Type drop-down in the parameter editor:
-- **cm:** values to the nearest 0.1 cm.
-- **%:** design inputs in 25% increments; range defaults to 0–100 unless an allowable range is entered.
-- **Number:** user-defined minimum and maximum (required) and optional units; design inputs in whole numbers.
-- **Y/N:** drop-down on the Match screen; each product is set to Yes, No or Either.
+- **cm:** values to the nearest 0.1 cm; slider moves in 0.1 cm steps.
+- **%:** user-defined precision (1, 0.1 or 0.01%) and slider step (default 25%). Allowable range defaults to 0–100 and can be changed.
+- **Number:** resolution 1, 0.1 or 0.02 (allowable range required), or **Variable**: a user-defined list of values entered below the allowable range. Values are added, moved, duplicated and deleted like products; the allowable range is set by the lowest and highest value. On Match, the slider steps through the values in list order, the values are shown below the slider, and the selected value is highlighted and scrolled into view.
+- **Y/N:** Yes / No radio buttons on the Match screen; the default is chosen from a drop-down. Each product is set to Yes, No or Either.
 
-The Match-screen slider moves at the type's resolution: 0.1 cm steps for cm, 25% steps for %, steps of 1 for Number. Typed inputs are rounded to the same resolution.
+**Manual entry rounding** (per parameter): Nearest, Round up or Round down. Applied when a value is typed on the Match screen (for Variable, to the next higher or lower defined value).
 
-Product values follow the same resolution and stay within the parameter's allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's resolution and range.
+Product values follow the parameter's precision (or defined values) and stay within its allowable range. Entries are adjusted when a field is left and on CSV import. Values saved earlier that do not match are listed under Data ▸ Review, with a button to apply the parameter's precision and range.
 
-Parameters and products can be reordered with the ▲ / ▼ buttons on the left of each card; Duplicate and Delete are on the right. The screen stays in place while reordering. Section headings can be tapped to collapse or expand them. Parameter order sets the Match-screen order; product order sets the list order and breaks ties in the ranking.
+Parameters and products can be reordered with the ▲ / ▼ buttons on the left of each card; Duplicate and Delete are on the right. The screen stays in place while reordering.
 
 ## Defaults and enabling
 
 - Each parameter can have a default value (below the allowable range in the editor). **Reset to defaults** on the Match tab sets every input to its default; parameters without one are cleared.
 - The parameter editor lists all products under **Enable for products**. Checked products use the parameter; their values are entered by the user on the Products tab.
 - Products missing values for an enabled parameter are highlighted on the Products tab, and the missing fields are highlighted in the product editor.
+
+## Products
+
+- Each product can have a **Link**, opened with **Open product link** in the Result section of the Match screen.
+- In the product editor, each parameter section collapses to a one-line summary (tap its name; Expand all / Collapse all at the top).
+- Scores show context, e.g. "87% (score: 23.5 of 27)": weighted points earned out of the total weight of the parameters scored for that product.
 
 ## Weights and relevance
 
@@ -66,6 +72,7 @@ Upload the changed file to the same repository. Also increase `VERSION` in `sw.j
 ## CSV format
 
 See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`, `[PRODUCTS]` in column A.
-- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Default, Weight, Description.
-- Products: Product, Description, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Yes/No parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
+- Parameters: Name, Type (cm / % / Number / Y/N), Unit, Range Min, Range Max, Resolution (Number: 1 / 0.1 / 0.02 / Variable; %: precision), Step (% slider step), Values (Variable values separated by semicolons), Rounding (Nearest / Round up / Round down), Default, Weight, Description.
+- Products: Product, Description, Link, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Y/N parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
+- Older files without the newer columns still import.
 - In Excel, save as **CSV UTF-8**.

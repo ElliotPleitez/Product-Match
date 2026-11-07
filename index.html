@@ -78,6 +78,31 @@ select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var
 .rb input{width:20px;height:20px;margin:0;padding:0;accent-color:var(--accent)}
 .rb:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--card))}
 /* chips scroll together as columns */
+.vstrip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:4px 0 0;padding:2px 0;scroll-snap-type:x proximity}
+.vstrip::-webkit-scrollbar{display:none}
+.vchip{flex:none;min-width:52px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--muted);font:inherit;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;cursor:pointer;scroll-snap-align:center}
+.vchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ring .v{text-align:center}
+.linkbtn{display:inline-block;margin-top:10px;text-decoration:none}
+.scol{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.srow{display:flex;align-items:center;gap:10px}
+.sctx{font-size:11px;color:var(--muted);white-space:nowrap}
+/* no text selection except in entry fields */
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.vrow{grid-template-columns:34px minmax(0,1fr) auto;padding:8px 10px;margin-bottom:6px;align-items:center}
+.vrow .mv button{width:34px;height:30px;font-size:12px}
+.vrow .acts{gap:4px}
+.vrow .acts button{padding:5px 8px;font-size:12px}
+.vbody input{font-size:17px;padding:8px 10px}
+.prow{display:flex;align-items:center;gap:8px}
+.relcb{width:22px;height:22px;margin:0;padding:0;flex:none;accent-color:var(--accent)}
+.ptoggle{flex:1;min-width:0;display:flex;align-items:center;gap:4px;background:none;border:0;padding:4px 0;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.pname2{min-width:0;overflow-wrap:anywhere}
+.psum{display:none;margin:4px 0 0 30px}
+.pfield.collapsed .pbody{display:none}
+.pfield.collapsed:not(.off) .psum{display:block}
+.pfield.collapsed .caret{transform:rotate(-90deg)}
 .chips.sync .chip{width:112px;flex:none;overflow:hidden}
 .chips.sync .chip span,.chips.sync .chip b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Settings accordion */
@@ -223,14 +248,15 @@ const $ = s => document.querySelector(s);
 const view = $('#view');
 // Parameter value types. dec = decimal places of accuracy.
 const TYPES = {
-  cm:      {label: 'cm (nearest 0.1)', unit: 'cm', dec: 1},
-  percent: {label: '% (25% increments)', unit: '%', dec: 0},
-  number:  {label: 'Number (resolution 1)'},
+  cm:      {label: 'cm (nearest 0.1)', unit: 'cm'},
+  percent: {label: '% (custom precision and step)', unit: '%'},
+  number:  {label: 'Number (choose resolution)'},
   boolean: {label: 'Y/N (Yes or No)'}
 };
 const BL = {yes: 'Yes', no: 'No', either: 'Either'};
-// Input / slider resolution per type.
-const RES = {cm: 0.1, percent: 25, number: 1};
+const NUM_RES = ['1', '0.1', '0.02', 'var'];          // Number resolution options
+const PCT_PREC = ['1', '0.1', '0.01'];                // % precision options
+const ROUND = {nearest: 'Nearest', up: 'Round up', down: 'Round down'};
 const decOf = r => (String(r).split('.')[1] || '').length;
 let S = load();
 
@@ -245,8 +271,13 @@ function fix(s){
     if (TYPES[p.type].unit) p.unit = TYPES[p.type].unit;
     if (p.type === 'boolean') { p.unit = ''; p.min = null; p.max = null; }
     if (p.def === undefined) p.def = null;
+    if (p.type === 'number' && !NUM_RES.includes(String(p.res))) p.res = 1;
+    if (p.type === 'number' && p.res !== 'var') p.res = Number(p.res);
+    if (p.type === 'percent') { if (!PCT_PREC.includes(String(p.res))) p.res = 1; p.res = Number(p.res); if (!(p.step > 0)) p.step = 25; }
+    if (!ROUND[p.round]) p.round = 'nearest';
+    p.vals = Array.isArray(p.vals) ? p.vals.filter(v => typeof v === 'number' && isFinite(v)) : [];
   });
-  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; });
+  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; if (pr.link == null) pr.link = ''; });
   return s;
 }
 function load(){
@@ -263,21 +294,61 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const P = id => S.parameters.find(x => x.id === id);
 const isBool = p => p.type === 'boolean';
-const prec = p => TYPES[p.type] && TYPES[p.type].dec != null ? TYPES[p.type].dec : null;
+const isVar = p => p.type === 'number' && p.res === 'var';
+const varVals = p => (p.vals || []).filter(v => typeof v === 'number' && isFinite(v));
+// Precision of typed and product values: cm 0.1; % user precision; Number 1 / 0.1 / 0.02.
+function resOf(p){
+  if (p.type === 'cm') return 0.1;
+  if (p.type === 'percent') return Number(p.res) || 1;
+  if (p.type === 'number' && !isVar(p)) return Number(p.res) || 1;
+  return null;
+}
+// Slider increment: % uses its own step; other fixed types use their precision.
+function stepOf(p){ return p.type === 'percent' ? (Number(p.step) > 0 ? Number(p.step) : 25) : resOf(p); }
+const prec = p => resOf(p) == null ? null : decOf(resOf(p));
 function roundP(p, v){ if (v == null) return null; const d = prec(p); return d == null ? v : Number(v.toFixed(d)); }
-// Allowable limits (percent defaults to 0–100).
-function limits(p){ return [p.min ?? (p.type === 'percent' ? 0 : null), p.max ?? (p.type === 'percent' ? 100 : null)]; }
-// Product values: snap to resolution, then keep within the allowable range.
+// Snap a value to the parameter's precision (or nearest defined value) using a rounding mode.
+function snap(p, v, mode = 'nearest'){
+  if (v == null) return null;
+  if (isVar(p)) {
+    const vals = [...varVals(p)].sort((a, b) => a - b);
+    if (!vals.length) return v;
+    if (mode === 'up') return vals.find(x => x >= v - 1e-9) ?? vals.at(-1);
+    if (mode === 'down') return [...vals].reverse().find(x => x <= v + 1e-9) ?? vals[0];
+    return vals.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
+  }
+  const r = resOf(p);
+  if (!r) return v;
+  const q = v / r, n = mode === 'up' ? Math.ceil(q - 1e-9) : mode === 'down' ? Math.floor(q + 1e-9) : Math.round(q);
+  return Number((n * r).toFixed(decOf(r)));
+}
+const roundIn = (p, v) => snap(p, v, 'nearest');
+// Allowable limits: % defaults to 0–100; Variable uses the lowest and highest defined value.
+function limits(p){
+  if (isVar(p)) { const v = varVals(p); return v.length ? [Math.min(...v), Math.max(...v)] : [null, null]; }
+  return [p.min ?? (p.type === 'percent' ? 0 : null), p.max ?? (p.type === 'percent' ? 100 : null)];
+}
+// Product values: snap to precision (or nearest defined value), then keep within the allowable range.
 function conformValue(p, v){
   if (v == null || isBool(p)) return v;
-  let x = roundIn(p, v); const [lo, hi] = limits(p);
-  if (lo != null && x < lo) x = roundIn(p, Math.ceil(lo / (RES[p.type] || 1) - 1e-9) * (RES[p.type] || 1));
-  if (hi != null && x > hi) x = roundIn(p, Math.floor(hi / (RES[p.type] || 1) + 1e-9) * (RES[p.type] || 1));
+  if (isVar(p)) return snap(p, v);
+  let x = snap(p, v); const [lo, hi] = limits(p);
+  if (lo != null && x < lo) x = snap(p, lo, 'up');
+  if (hi != null && x > hi) x = snap(p, hi, 'down');
   return x;
 }
 const conforms = (p, v) => v == null || conformValue(p, v) === v;
+function resText(p){
+  if (p.type === 'cm') return '0.1 cm';
+  if (p.type === 'percent') return `precision ${resOf(p)}%, step ${stepOf(p)}%`;
+  if (isVar(p)) return `Variable (${varVals(p).length} values)`;
+  if (p.type === 'number') return `resolution ${resOf(p)}`;
+  return 'Yes / No';
+}
 function ruleText(p){
-  const r = p.type === 'cm' ? 'Steps of 0.1 cm' : p.type === 'percent' ? 'Steps of 25%' : p.type === 'number' ? 'Whole numbers' : 'Any value';
+  const r = p.type === 'cm' ? 'Steps of 0.1 cm' : p.type === 'percent' ? `Steps of ${resOf(p)}%`
+    : isVar(p) ? 'One of the defined values' : p.type === 'number' ? (resOf(p) === 1 ? 'Whole numbers' : `Steps of ${resOf(p)}`) : 'Any value';
+  if (isVar(p)) return `${r} (${varVals(p).map(fmt).join(', ')})`;
   const [lo, hi] = limits(p);
   return lo != null || hi != null ? `${r} within ${fmt(lo)} – ${fmt(hi)}` : r;
 }
@@ -288,12 +359,6 @@ function nonConforming(){
 }
 function conformAll(){
   S.products.forEach(pr => S.parameters.forEach(p => { if (isBool(p)) return; const r = pr.ranges[p.id]; if (r) pr.ranges[p.id] = [conformValue(p, r[0]), conformValue(p, r[1])]; }));
-}
-// Design inputs snap to the type's resolution (0.1 cm, 25%, 1).
-function roundIn(p, v){
-  if (v == null) return null;
-  const r = RES[p.type];
-  return r ? Number((Math.round(v / r) * r).toFixed(decOf(r))) : roundP(p, v);
 }
 function num(v){
   if (v === null || v === undefined) return null;
@@ -345,8 +410,12 @@ function productExtent(p){
   return lo === Infinity ? null : [lo, hi];
 }
 // Range shown beside the input and used by the slider.
+// Variable: one slider position per defined value, in list order.
 function sliderSpec(p){
-  const d = prec(p);
+  if (isVar(p)) {
+    const vals = varVals(p), [a, b] = limits(p);
+    return {isVar: true, vals, lo: 0, hi: Math.max(vals.length - 1, 0), step: 1, dec: 0, src: 'Values', rlo: a, rhi: b};
+  }
   let lo = p.min, hi = p.max, src = 'Allowable';
   if (p.type === 'percent') { if (lo == null) lo = 0; if (hi == null) hi = 100; }
   if (lo == null || hi == null) {
@@ -355,24 +424,17 @@ function sliderSpec(p){
     if (lo == null) lo = e ? e[0] : 0;
     if (hi == null) hi = e ? e[1] : lo + 1;
   }
-  // Slider moves at the type's resolution (0.1 cm, 25%), between the nearest
-  // resolution points inside the range. Other types: one position per whole unit.
-  const res = RES[p.type];
-  if (!(hi > lo)) hi = lo + (res || 1);
+  const step = stepOf(p) || 1;
+  if (!(hi > lo)) hi = lo + step;
   const rlo = lo, rhi = hi;
-  let step, dec;
-  if (res) {
-    dec = decOf(res);
-    const a = Math.ceil(lo / res - 1e-9) * res, b = Math.floor(hi / res + 1e-9) * res;
-    if (b > a) { lo = Number(a.toFixed(dec)); hi = Number(b.toFixed(dec)); step = res; }
-    else { step = hi - lo; dec = 6; }
-  } else {
-    const span = hi - lo, n = Math.max(1, Math.round(span)); step = span / n;
-    dec = Number.isInteger(step) && Number.isInteger(lo) ? 0 : 6;
-  }
-  return {lo, hi, step, dec, src, rlo, rhi};
+  let dec = Math.max(decOf(step), prec(p) ?? 0), st = step;
+  const a = Math.ceil(lo / step - 1e-9) * step, b = Math.floor(hi / step + 1e-9) * step;
+  if (b > a) { lo = Number(a.toFixed(dec)); hi = Number(b.toFixed(dec)); }
+  else { st = hi - lo; dec = 6; }
+  return {lo, hi, step: st, dec, src, rlo, rhi};
 }
 function refSpan(p){
+  if (isVar(p)) { const [a, b] = limits(p); return b > a ? b - a : 1; }
   if (p.min != null && p.max != null && p.max > p.min) return p.max - p.min;
   if (p.type === 'percent') return 100;
   const e = productExtent(p);
@@ -400,7 +462,7 @@ function rank(){
       if (w > 0) { ws += w; ss += w * s; n++; if (st === 'within') within++; }
       fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0)};
     });
-    return {pr, score: ws ? ss / ws : 0, within, n, fits};
+    return {pr, score: ws ? ss / ws : 0, pts: ss / 100, tot: ws, within, n, fits};
   });
   res.sort((a, b) => b.score - a.score || b.n - a.n || b.within - a.within || S.products.indexOf(a.pr) - S.products.indexOf(b.pr));
   return {res, act};
@@ -415,6 +477,11 @@ function issues(){
     else if (seen.has(n.toLowerCase())) out.push(`Duplicate parameter name "${n}". Names must be unique for CSV import/export.`);
     seen.add(n.toLowerCase());
     if (p.min != null && p.max != null && p.min > p.max) out.push(`${n}: allowable minimum exceeds maximum.`);
+    if (isVar(p)) {
+      const v = varVals(p);
+      if (v.length < 2) out.push(`${n}: Variable resolution needs at least two values.`);
+      if (v.some((x, i) => i && x < v[i - 1])) out.push(`${n}: values are not in ascending order; the slider follows the list order.`);
+    }
   });
   S.products.forEach(pr => S.parameters.forEach(p => {
     if (wOf(pr, p) <= 0) return;
@@ -574,18 +641,30 @@ function renderMatch(){
   // Manual entry (opened with ⋯): rounded to the parameter's resolution -> slider
   view.querySelectorAll('input[data-in]').forEach(el => {
     el.addEventListener('input', () => {
-      const id = el.dataset.in, v = roundIn(P(id), num(el.value));
-      if (v == null) return;          // empty box leaves the current value unchanged
-      syncSlider(id, v); setInput(id, v);
+      // Applied when the entry is finished (Done, Enter or leaving the box), using the parameter's rounding.
     });
-    el.addEventListener('change', () => { if (num(el.value) != null) el.value = S.inputs[el.dataset.in]; });
+    el.addEventListener('change', () => {
+      const id = el.dataset.in, p = P(id), raw = num(el.value);
+      if (raw == null) return;        // empty box leaves the current value unchanged
+      const v = snap(p, raw, p.round);
+      el.value = v; syncSlider(id, v); setInput(id, v);
+      if (v !== raw) toast(`${p.name}: ${fmt(raw)} → ${fmt(v)} (${ROUND[p.round].toLowerCase()})`);
+    });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
   });
   view.querySelectorAll('[data-dots]').forEach(b => b.onclick = () => {
     const m = view.querySelector(`[data-man="${b.dataset.dots}"]`), open = m.classList.toggle('open');
     if (open) { const i = m.querySelector('input'); i.value = ''; i.focus(); }   // start with a clear box
   });
-  view.querySelectorAll('[data-done]').forEach(b => b.onclick = () => view.querySelector(`[data-man="${b.dataset.done}"]`).classList.remove('open'));
+  view.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
+    const m = view.querySelector(`[data-man="${b.dataset.done}"]`), i = m.querySelector('input');
+    i.dispatchEvent(new Event('change')); i.blur(); m.classList.remove('open');
+  });
+  // Variable values: tap a value to select it
+  view.querySelectorAll('[data-vp]').forEach(b => b.onclick = () => {
+    const p = P(b.dataset.vp), v = varVals(p)[Number(b.dataset.vi)];
+    syncSlider(p.id, v); setInput(p.id, v);
+  });
   // Yes / No radio buttons (tap the selected one again to clear it)
   view.querySelectorAll('[data-yn]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.yn;
@@ -594,9 +673,8 @@ function renderMatch(){
   // Slider -> value (moves at the parameter's resolution)
   view.querySelectorAll('[data-s]').forEach(el => el.addEventListener('input', () => {
     const id = el.dataset.s, sp = sliderSpec(P(id));
-    const v = Number(Number(el.value).toFixed(sp.dec));
+    const v = sp.isVar ? sp.vals[Number(el.value)] : Number(Number(el.value).toFixed(sp.dec));
     el.classList.remove('unset');
-    view.querySelector(`input[data-in="${id}"]`).value = v;
     setInput(id, v);
   }));
   $('#resetIn').onclick = () => {
@@ -610,7 +688,25 @@ function syncSlider(id, v){
   const s = view.querySelector(`[data-s="${id}"]`);
   if (!s) return;
   s.classList.toggle('unset', v == null);
-  if (v != null) s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
+  if (v == null) return;
+  const p = P(id);
+  if (isVar(p)) s.value = varIndex(p, v);
+  else s.value = Math.min(Number(s.max), Math.max(Number(s.min), v));
+}
+// Index of the defined value closest to v (list order).
+function varIndex(p, v){
+  const vals = varVals(p); let best = 0;
+  vals.forEach((x, i) => { if (Math.abs(x - v) < Math.abs(vals[best] - v)) best = i; });
+  return best;
+}
+// Highlight the selected value in the strip and bring it into view.
+function showVar(p, v, smooth){
+  const strip = view.querySelector(`[data-strip="${p.id}"]`);
+  if (!strip) return;
+  const idx = v == null ? -1 : varIndex(p, v);
+  strip.querySelectorAll('.vchip').forEach((c, i) => c.classList.toggle('on', i === idx));
+  const c = strip.children[idx];
+  if (c) strip.scrollTo({left: c.offsetLeft - strip.clientWidth / 2 + c.offsetWidth / 2, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'});
 }
 // Compact card: name + weight on top; slider; value; range/default + units + ⋯ at the bottom.
 function inputCard(p){
@@ -626,13 +722,17 @@ function inputCard(p){
     </div>`;
   }
   const sp = sliderSpec(p);
-  const pos = v == null ? Number((sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step).toFixed(sp.dec)) : Math.min(sp.hi, Math.max(sp.lo, v));
+  const pos = sp.isVar ? (v == null ? Math.floor(sp.hi / 2) : varIndex(p, v))
+    : v == null ? Number((sp.lo + Math.round((sp.hi - sp.lo) / 2 / sp.step) * sp.step).toFixed(sp.dec)) : Math.min(sp.hi, Math.max(sp.lo, v));
+  const below = sp.isVar
+    ? `<div class="vstrip" data-strip="${p.id}">${sp.vals.map((x, i) => `<button class="vchip" data-vp="${p.id}" data-vi="${i}">${fmt(x)}</button>`).join('')}</div>`
+    : `<div class="ends"><span>${fmt(sp.lo)}</span><span class="val" data-val="${p.id}">${v == null ? '—' : fmt(v)}</span><span>${fmt(sp.hi)}</span></div>`;
   return `<div class="card inp">${top}
     <input type="range" class="vslider ${v == null ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">
-    <div class="ends"><span>${fmt(sp.lo)}</span><span class="val" data-val="${p.id}">${v == null ? '—' : fmt(v)}</span><span>${fmt(sp.hi)}</span></div>
+    ${below}
     <div class="bot"><span class="xsmall" data-hint="${p.id}"></span><span class="spacer"></span><span class="xsmall muted">${esc(p.unit)}</span>
       <button class="dots" data-dots="${p.id}" aria-label="Enter ${esc(p.name)} manually">⋯</button></div>
-    <div class="manual" data-man="${p.id}"><input type="number" step="${RES[p.type] || 'any'}" data-in="${p.id}" value="" placeholder="Enter value" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>
+    <div class="manual" data-man="${p.id}"><input type="number" step="${resOf(p) || 'any'}" data-in="${p.id}" value="" placeholder="Enter value (${ROUND[p.round].toLowerCase()})" aria-label="${esc(p.name)}"><button class="btn" data-done="${p.id}">Done</button></div>
   </div>`;
 }
 function updateMatch(){
@@ -640,7 +740,8 @@ function updateMatch(){
   S.parameters.forEach(p => {
     if (isBool(p)) return;
     const v = S.inputs[p.id], h = view.querySelector(`[data-hint="${p.id}"]`), sp = sliderSpec(p);
-    const out = v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
+    const out = !isVar(p) && v != null && ((p.min != null && v < p.min) || (p.max != null && v > p.max));
+    if (isVar(p)) showVar(p, v, true);
     if (h) {
       h.className = 'xsmall ' + (out ? 'warn-text' : 'muted');
       h.textContent = (out ? `Outside allowable ${fmt(p.min)} – ${fmt(p.max)}` : `${sp.src}: ${fmt(sp.rlo)} – ${fmt(sp.rhi)}`)
@@ -666,11 +767,12 @@ function updateMatch(){
       <div class="result-top">
         <div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="64" fill="none" stroke="var(--soft)" stroke-width="13"/>
           <circle cx="75" cy="75" r="64" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - shown.score / 100)}" style="transition:stroke-dashoffset .4s"/></svg>
-          <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span></div></div>
+          <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span><span class="xsmall muted">(score: ${fmt(shown.pts)} of ${fmt(shown.tot)})</span></div></div>
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
           <div class="pname">${esc(shown.pr.name)}</div>
           ${shown.pr.notes ? `<div class="muted small" style="white-space:pre-line">${esc(shown.pr.notes)}</div>` : ''}
-          <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div></div>
+          <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div>
+          ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
       </div>
       <div style="margin-top:12px">${fits}</div>
       ${alts ? `<div class="alts"><span class="small muted">${isBest ? 'Alternatives:' : 'Other candidates:'}</span>${alts}</div>` : ''}
@@ -692,7 +794,7 @@ function updateMatch(){
     return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
         <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted clamp">${esc(r.pr.notes)}</div>` : ''}</div>
-        ${scored ? `<div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div>` : ''}</div>
+        ${scored ? `<div class="scol"><div class="srow"><div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div></div><div class="sctx">(score: ${fmt(r.pts)} of ${fmt(r.tot)})</div></div>` : ''}</div>
       <div class="chips sync">${chips}</div></div>`;
   }).join('');
   syncChips($('#list'));
@@ -731,6 +833,7 @@ function renderParams(box, act){
   const cards = n ? S.parameters.map((p, i) => listCard(p.id, i, n, p.name, '', false, p.details,
       chip('Type', esc(TYPES[p.type].label.split(' ')[0])) +
       (isBool(p) ? chip('Values', 'Yes / No') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`)) +
+      (isBool(p) ? '' : chip('Resolution', esc(resText(p)))) +
       chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : fmt(p.def)) +
       chip('Weight', p.weight))).join('')
     : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
@@ -768,7 +871,9 @@ function renderParams(box, act){
   };
 }
 function editParam(id){
-  const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, def: null, weight: 5, details: ''};
+  const p = id ? P(id) : {id: uid('p'), name: '', type: 'cm', unit: 'cm', min: null, max: null, def: null, weight: 5, details: '', res: 1, step: 25, vals: [], round: 'nearest'};
+  // Working copy of the custom values (strings while editing).
+  let vals = (p.vals || []).map(String);
   const enabledNow = pr => { const r = relOf(pr, p); return !!id && r.on && r.w > 0; };
   const enableList = S.products.length ? `
     <details class="field en" ${id ? '' : 'open'}><summary>Enable for products (<span id="enCount"></span>)</summary>
@@ -777,16 +882,33 @@ function editParam(id){
         ${S.products.map(pr => `<label class="chk enrow"><input type="checkbox" data-en="${pr.id}" ${enabledNow(pr) ? 'checked' : ''}><span>${esc(pr.name)}</span></label>`).join('')}
       </div>
       <div class="xsmall muted" style="margin:5px 2px">${id ? 'Checked products use this parameter.' : 'Select the products this new parameter applies to.'} Their values are entered on the Products tab; products missing values are highlighted until complete.</div></details>` : '';
+  const numRes = p.type === 'number' ? String(p.res) : '1';
+  const pctRes = p.type === 'percent' ? String(p.res) : '1';
   openSheet(id ? 'Edit Parameter' : 'New Parameter', `
     <div class="field"><label>Name</label><input id="fName" value="${esc(p.name)}" placeholder="e.g., Wound length"></div>
-    <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).filter(([k, t]) => !t.legacy || p.type === k).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
-    <div class="field" id="unitWrap"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="e.g., CFM"></div>
-    <div class="field" id="rangeWrap"><label>Allowable range (optional)</label>
+    <div class="field"><label>Type</label><select id="fType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
+    <div class="field" id="unitWrap"><label>Units</label><input id="fUnit" value="${esc(p.unit)}" placeholder="Optional (e.g., count, days)"></div>
+    <div class="field" id="resWrap"><label>Resolution</label>
+      <select id="fRes">${NUM_RES.map(r => `<option value="${r}" ${numRes === r ? 'selected' : ''}>${r === 'var' ? 'Variable (defined values)' : r}</option>`).join('')}</select></div>
+    <div class="field" id="pctWrap"><label>Precision and slider step</label>
+      <div class="pair"><select id="fPrec">${PCT_PREC.map(r => `<option value="${r}" ${pctRes === r ? 'selected' : ''}>Precision ${r}%</option>`).join('')}</select>
+        <span>step</span><input id="fStep" type="number" min="0" value="${p.type === 'percent' ? plain(p.step) : '25'}" placeholder="25"></div>
+      <div class="xsmall muted" style="margin:5px 2px">Precision applies to typed and product values. The slider moves in steps of the step value.</div></div>
+    <div class="field" id="rangeWrap"><label id="rangeLabel">Allowable range (optional)</label>
       <div class="pair"><input id="fMin" type="number" value="${plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${plain(p.max)}" placeholder="Maximum"></div>
       <div class="xsmall muted" id="rangeNote" style="margin:5px 2px"></div></div>
+    <div class="field" id="valsWrap"><label>Values (<span id="valCount">0</span>)</label>
+      <div id="valList"></div>
+      <div class="pair" style="margin-top:6px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="sortVals" style="flex:1">Sort ascending</button></div>
+      <div class="xsmall muted" style="margin:5px 2px">The Match slider steps through these values in this order. Product ranges are selected from them.</div></div>
+    <div class="field" id="roundWrap"><label>Manual entry rounding</label>
+      <select id="fRound">${Object.entries(ROUND).map(([k, t]) => `<option value="${k}" ${p.round === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <div class="xsmall muted" style="margin:5px 2px" id="roundNote"></div></div>
     <div class="field" id="defNumWrap"><label>Default value (optional)</label>
-      <input id="fDef" type="number" value="${isBool(p) ? '' : plain(p.def)}" placeholder="None">
-      <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab. Snaps to the resolution and allowable range.</div></div>
+      <input id="fDef" type="number" value="${isBool(p) || isVar(p) ? '' : plain(p.def)}" placeholder="None">
+      <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab. Snaps to the precision and allowable range.</div></div>
+    <div class="field" id="defVarWrap"><label>Default value (optional)</label><select id="fDefV"></select>
+      <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
     <div class="field" id="defBoolWrap"><label>Default value (optional)</label>
       <select id="fDefB"><option value="">None</option><option value="yes" ${p.def === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.def === 'no' ? 'selected' : ''}>No</option></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
@@ -797,34 +919,50 @@ function editParam(id){
     <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Basis, test standard, or notes">${esc(p.details)}</textarea></div>
     <div id="fErr" class="small err-text"></div>`,
     () => {
-      const type = $('#fType').value, t = TYPES[type], probe = {type};
+      const type = $('#fType').value, t = TYPES[type];
       const name = $('#fName').value.trim();
-      let min = type === 'boolean' ? null : roundP(probe, num($('#fMin').value));
-      let max = type === 'boolean' ? null : roundP(probe, num($('#fMax').value));
+      const res = type === 'number' ? ($('#fRes').value === 'var' ? 'var' : Number($('#fRes').value)) : type === 'percent' ? Number($('#fPrec').value) : null;
+      const probe = {type, res};
+      const variable = type === 'number' && res === 'var';
       if (!name) return 'Enter a parameter name.';
       if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return 'A parameter with this name already exists.';
-      if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
-      if (type === 'number' && (min == null || max == null)) return 'Enter both a minimum and a maximum for a Number parameter.';
-      const def = type === 'boolean' ? ($('#fDefB').value || null) : conformValue({type, min, max}, num($('#fDef').value));
+      let min = null, max = null, step = null, nv = [];
+      if (variable) {
+        nv = vals.map(num);
+        if (nv.some(x => x == null)) return 'Every value must be a number. Delete empty rows.';
+        if (nv.length < 2) return 'Enter at least two values.';
+        if (new Set(nv).size !== nv.length) return 'Values must be unique.';
+        if (nv.some((x, i) => i && x < nv[i - 1]) && !confirm('The values are not in ascending order. The slider follows the list order, while product ranges compare values numerically. Save anyway?')) return 'Use Sort ascending, or reorder the values.';
+      } else if (type !== 'boolean') {
+        min = roundP(probe, num($('#fMin').value)); max = roundP(probe, num($('#fMax').value));
+        if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
+        if (type === 'number' && (min == null || max == null)) return 'Enter both a minimum and a maximum for a Number parameter.';
+      }
+      if (type === 'percent') {
+        step = num($('#fStep').value);
+        if (!(step > 0)) return 'Enter a slider step greater than 0.';
+        step = Math.max(res, Math.round(step / res) * res); step = Number(step.toFixed(decOf(res)));
+      }
+      const def = type === 'boolean' ? ($('#fDefB').value || null)
+        : variable ? num($('#fDefV').value)
+        : conformValue({type, res, min, max}, num($('#fDef').value));
       if (id && isBool(p) !== (type === 'boolean')) {
         if (!confirm('Changing between Yes/No and a numeric type clears this parameter\'s product values and current input. Continue?')) return 'Type change cancelled.';
         S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; });
         delete S.inputs[p.id];
       }
-      Object.assign(p, {name, type, unit: type === 'boolean' ? '' : (t.unit || $('#fUnit').value.trim()), min, max, def, weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
-      if (prec(p) != null) {   // apply the type's accuracy to existing product values and input
-        S.products.forEach(pr => { const r = pr.ranges[p.id]; if (r) pr.ranges[p.id] = [roundP(p, r[0]), roundP(p, r[1])]; });
-        if (typeof S.inputs[p.id] === 'number') S.inputs[p.id] = roundP(p, S.inputs[p.id]);
-      }
+      Object.assign(p, {name, type, unit: type === 'boolean' ? '' : (t.unit || $('#fUnit').value.trim()), min, max, def,
+        res: res ?? p.res, step: step ?? p.step, vals: variable ? nv : [], round: type === 'boolean' ? 'nearest' : $('#fRound').value,
+        weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
+      if (typeof S.inputs[p.id] === 'number') S.inputs[p.id] = conformValue(p, S.inputs[p.id]);
       if (!id) S.parameters.push(p);
       // Enable for selected products (values are entered by the user on the Products tab).
-      let enabled = 0, missing = 0;
+      let missing = 0;
       S.products.forEach(pr => {
         const cb = document.querySelector(`[data-en="${pr.id}"]`);
         if (!cb) return;
         const cur = pr.rel[p.id];
         if (cb.checked) {
-          enabled++;
           pr.rel[p.id] = {on: true, w: cur && cur.on !== false && cur.w > 0 ? cur.w : p.weight};
           if (isBool(p) ? !pr.flags[p.id] : !rng(pr, p)) missing++;
         } else pr.rel[p.id] = {on: false, w: cur ? cur.w : null};
@@ -835,29 +973,83 @@ function editParam(id){
       else if (nc) toast(`${nc} product value(s) no longer match a parameter. See Data ▸ Review.`);
     },
     () => {
+      const isVarSel = () => $('#fType').value === 'number' && $('#fRes').value === 'var';
+      // ----- custom values list (add, move, duplicate, delete) -----
+      const drawVals = () => {
+        const n = vals.length;
+        $('#valList').innerHTML = n ? vals.map((v, i) => `<div class="card lcard vrow" data-vrow="${i}">
+            <div class="mv"><button type="button" data-va="up" data-i="${i}" ${i ? '' : 'disabled'} aria-label="Move up">▲</button><button type="button" data-va="down" data-i="${i}" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">▼</button></div>
+            <div class="vbody"><input type="number" step="any" data-vin="${i}" value="${esc(v)}" placeholder="Value ${i + 1}"></div>
+            <div class="acts"><button type="button" data-va="dup" data-i="${i}">Duplicate</button><button type="button" class="danger" data-va="del" data-i="${i}">Delete</button></div>
+          </div>`).join('') : '<div class="card muted small" style="margin:0">No values yet. Select + Add value.</div>';
+        $('#valCount').textContent = n;
+        refreshVarUI();
+      };
+      const refreshVarUI = () => {
+        const nv = vals.map(num).filter(x => x != null);
+        if (isVarSel()) {
+          $('#fMin').value = nv.length ? Math.min(...nv) : ''; $('#fMax').value = nv.length ? Math.max(...nv) : '';
+        }
+        const cur = $('#fDefV').value !== '' ? $('#fDefV').value : (isVar(p) && p.def != null ? String(p.def) : '');
+        $('#fDefV').innerHTML = '<option value="">None</option>' + [...new Set(nv)].map(x => `<option value="${x}" ${String(x) === cur ? 'selected' : ''}>${fmt(x)}</option>`).join('');
+      };
+      $('#valList').onclick = e => {
+        const b = e.target.closest('[data-va]'); if (!b) return;
+        const i = Number(b.dataset.i), a = b.dataset.va;
+        if (a === 'up' && i > 0) [vals[i - 1], vals[i]] = [vals[i], vals[i - 1]];
+        if (a === 'down' && i < vals.length - 1) [vals[i + 1], vals[i]] = [vals[i], vals[i + 1]];
+        if (a === 'dup') vals.splice(i + 1, 0, vals[i]);
+        if (a === 'del') vals.splice(i, 1);
+        drawVals();
+        const focus = a === 'dup' ? i + 1 : a === 'up' ? i - 1 : a === 'down' ? i + 1 : null;
+        if (focus != null) { const r = document.querySelector(`[data-vrow="${focus}"]`); if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); } }
+      };
+      $('#valList').oninput = e => { const i = e.target.dataset.vin; if (i != null) { vals[Number(i)] = e.target.value; refreshVarUI(); } };
+      $('#addVal').onclick = () => {
+        const nv = vals.map(num).filter(x => x != null);
+        vals.push(nv.length ? String(Math.max(...nv) + 1) : '');
+        drawVals();
+        const inp = document.querySelector(`[data-vin="${vals.length - 1}"]`); if (inp) { inp.focus(); inp.select(); }
+      };
+      $('#sortVals').onclick = () => { vals.sort((a, b) => (num(a) ?? Infinity) - (num(b) ?? Infinity)); drawVals(); };
+      // ----- type-dependent fields -----
       const apply = () => {
-        const type = $('#fType').value, t = TYPES[type];
-        $('#unitWrap').style.display = type === 'number' ? '' : 'none';
-        $('#rangeWrap').style.display = type === 'boolean' ? 'none' : '';
-        $('#defNumWrap').style.display = type === 'boolean' ? 'none' : '';
-        $('#defBoolWrap').style.display = type === 'boolean' ? '' : 'none';
+        const type = $('#fType').value, t = TYPES[type], variable = isVarSel();
+        const show = (sel, on) => $(sel).style.display = on ? '' : 'none';
+        show('#unitWrap', type === 'number');
+        show('#resWrap', type === 'number');
+        show('#pctWrap', type === 'percent');
+        show('#rangeWrap', type !== 'boolean');
+        show('#valsWrap', variable);
+        show('#roundWrap', type !== 'boolean');
+        show('#defNumWrap', type !== 'boolean' && !variable);
+        show('#defVarWrap', variable);
+        show('#defBoolWrap', type === 'boolean');
         const u = $('#fUnit');
         if (t.unit) { u.value = t.unit; u.disabled = true; } else { if (u.disabled) u.value = ''; u.disabled = false; }
-        const step = t.dec != null ? String(Math.pow(10, -t.dec)) : 'any';
-        $('#fMin').step = step; $('#fMax').step = step; $('#fDef').step = RES[type] || 'any';
-        $('#rangeNote').textContent = type === 'percent' ? 'Design inputs are set in 25% increments. Leave blank for 0 – 100.'
-          : type === 'cm' ? 'Values are in cm to the nearest 0.1.'
-          : type === 'number' ? 'Required. Enter the minimum and maximum for this parameter. Design inputs are whole numbers.'
-          : 'Inputs outside this range are flagged. The range also sets the slider span.';
-        if (RES[type]) $('#rangeNote').textContent += type === 'cm' ? ' The slider moves in 0.1 cm steps.' : type === 'percent' ? ' The slider moves in 25% steps.' : ' The slider moves in steps of 1.';
-        $('#fUnit').placeholder = 'Optional (e.g., count, days)';
+        $('#fMin').disabled = $('#fMax').disabled = variable;
+        if (type === 'percent' && $('#fMin').value === '' && $('#fMax').value === '') { $('#fMin').value = 0; $('#fMax').value = 100; }
+        const res = type === 'cm' ? 0.1 : type === 'percent' ? Number($('#fPrec').value) : variable ? 'any' : Number($('#fRes').value);
+        $('#fMin').step = $('#fMax').step = $('#fDef').step = res;
+        $('#fStep').step = type === 'percent' ? Number($('#fPrec').value) : 'any';
+        $('#rangeLabel').textContent = variable ? 'Allowable range (set by the values below)' : type === 'number' ? 'Allowable range' : 'Allowable range (optional)';
+        $('#rangeNote').textContent = variable ? 'Lowest and highest of the defined values.'
+          : type === 'percent' ? 'Defaults to 0 – 100; can be changed. The slider moves in steps of the step value.'
+          : type === 'cm' ? 'Values are in cm to the nearest 0.1. The slider moves in 0.1 cm steps.'
+          : `Required. The slider moves in steps of ${res}.`;
+        const r = $('#fRound').value;
+        $('#roundNote').textContent = variable ? `A typed value moves to the ${r === 'up' ? 'next higher' : r === 'down' ? 'next lower' : 'closest'} defined value.`
+          : `A typed value is rounded ${r === 'up' ? 'up' : r === 'down' ? 'down' : 'to the nearest'} ${type === 'cm' ? '0.1 cm' : type === 'percent' ? $('#fPrec').value + '%' : res}.`;
+        if (variable) refreshVarUI();
       };
-      // Snap the default to the resolution and range when leaving the field.
+      // Snap the default to the precision and range when leaving the field.
       $('#fDef').onchange = () => {
         const type = $('#fType').value, v = num($('#fDef').value);
-        if (v != null) $('#fDef').value = conformValue({type, min: roundP({type}, num($('#fMin').value)), max: roundP({type}, num($('#fMax').value))}, v);
+        const res = type === 'percent' ? Number($('#fPrec').value) : type === 'number' ? Number($('#fRes').value) : null;
+        if (v != null) $('#fDef').value = conformValue({type, res, min: num($('#fMin').value), max: num($('#fMax').value)}, v);
       };
-      $('#fType').onchange = apply; apply();
+      ['#fType', '#fRes', '#fPrec', '#fRound'].forEach(s => $(s).onchange = apply);
+      drawVals(); apply();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
       if ($('#enAll')) {
         const count = () => { const all = [...document.querySelectorAll('[data-en]')]; $('#enCount').textContent = `${all.filter(c => c.checked).length} of ${all.length}`; };
@@ -908,10 +1100,16 @@ function renderProducts(box, act){
     }
   };
 }
+function normLink(t){
+  t = String(t || '').trim();
+  if (!t) return '';
+  return /^[a-z][a-z0-9+.-]*:/i.test(t) ? t : 'https://' + t;
+}
 function editProduct(id){
-  const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', ranges: {}, flags: {}, rel: {}};
+  const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', link: '', ranges: {}, flags: {}, rel: {}};
+  const hasVal = p => isBool(p) ? !!pr.flags[p.id] : !!rng(pr, p);
   const fields = S.parameters.map(p => {
-    const rel = relOf(pr, p), step = RES[p.type] || 'any', [lim0, lim1] = limits(p);
+    const rel = relOf(pr, p), [lim0, lim1] = limits(p);
     const mm = `${lim0 != null ? `min="${lim0}"` : ''} ${lim1 != null ? `max="${lim1}"` : ''}`;
     let body;
     if (isBool(p)) {
@@ -919,21 +1117,32 @@ function editProduct(id){
       body = `<select data-bv="${p.id}"><option value="">— Select —</option>
         <option value="yes" ${f === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${f === 'no' ? 'selected' : ''}>No</option>
         <option value="either" ${f === 'either' ? 'selected' : ''}>Either (Yes or No)</option></select>`;
-    } else {
+    } else if (isVar(p)) {
       const r = pr.ranges[p.id] || [null, null];
+      const opts = sel => '<option value="">—</option>' + varVals(p).map(x => `<option value="${x}" ${sel === x ? 'selected' : ''}>${fmt(x)}</option>`).join('');
+      body = `<div class="pair"><select data-lo="${p.id}">${opts(r[0])}</select><span>to</span><select data-hi="${p.id}">${opts(r[1])}</select></div>`;
+    } else {
+      const r = pr.ranges[p.id] || [null, null], step = resOf(p) || 'any';
       body = `<div class="pair"><input type="number" step="${step}" ${mm} data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="${step}" ${mm} data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>`;
     }
-    return `<div class="pfield ${rel.on ? '' : 'off'}" data-pf="${p.id}">
-      <div class="prow"><label class="chk"><input type="checkbox" data-rel="${p.id}" ${rel.on ? 'checked' : ''}>
-        <span><b>${esc(p.name)}</b>${p.unit ? ` <span class="muted small">(${esc(p.unit)})</span>` : ''}</span></label>
+    // Existing products open with complete parameters collapsed; new products open expanded.
+    const collapsed = id && (!rel.on || hasVal(p));
+    return `<div class="pfield ${rel.on ? '' : 'off'} ${collapsed ? 'collapsed' : ''}" data-pf="${p.id}">
+      <div class="prow">
+        <input type="checkbox" class="relcb" data-rel="${p.id}" ${rel.on ? 'checked' : ''} aria-label="${esc(p.name)} relevant">
+        <button type="button" class="ptoggle" data-ptog="${p.id}"><span class="caret">▾</span><span class="pname2"><b>${esc(p.name)}</b>${p.unit ? ` <span class="muted small">(${esc(p.unit)})</span>` : ''}</span></button>
         <span class="wbox">Weight <input type="number" min="0" max="10" step="1" inputmode="numeric" data-pw="${p.id}" value="${plain(rel.w)}"></span></div>
+      <div class="psum xsmall muted" data-psum="${p.id}"></div>
       <div class="pbody">${body}<div class="xsmall" data-pwarn="${p.id}" style="margin:5px 2px 0"></div></div>
       <div class="offnote xsmall muted">Not relevant to this product (weight 0).</div>
     </div>`;
   }).join('');
   openSheet(id ? 'Edit Product' : 'New Product', `
     <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
-    <div class="field"><label>Parameters – check each one relevant to this product and enter its weight (0–10)</label></div>
+    <div class="field"><label>Link (optional)</label><input id="fLink" type="url" inputmode="url" autocapitalize="off" autocorrect="off" value="${esc(pr.link || '')}" placeholder="https://…">
+      <div class="xsmall muted" style="margin:5px 2px">Opened from the Result section on the Match screen.</div></div>
+    <div class="sec-h" style="margin:4px 2px 8px"><label class="small muted" style="font-weight:600">Parameters – check each one relevant to this product and enter its weight (0–10)</label></div>
+    <div class="row" style="justify-content:space-between;margin:-4px 0 8px"><button type="button" class="link" id="pExpand">Expand all</button><button type="button" class="link" id="pCollapse">Collapse all</button></div>
     ${fields}
     <div class="field"><label>Description</label><textarea id="fNotes" placeholder="Basis, manufacturer, or notes">${esc(pr.notes)}</textarea></div>
     <div id="fErr" class="small err-text"></div>`,
@@ -953,19 +1162,25 @@ function editProduct(id){
           if (lo != null || hi != null) ranges[p.id] = [lo, hi];
         }
       }
-      Object.assign(pr, {name, notes: $('#fNotes').value.trim(), ranges, flags, rel});
+      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel});
       if (!id) S.products.push(pr);
       save(); afterSave(pr.id, !id);
     },
     () => {
+      const q = sel => document.querySelector(sel);
       const check = p => {
-        const pf = document.querySelector(`[data-pf="${p.id}"]`), on = document.querySelector(`[data-rel="${p.id}"]`).checked;
-        const empty = isBool(p) ? !document.querySelector(`[data-bv="${p.id}"]`).value
-          : !(num(document.querySelector(`[data-lo="${p.id}"]`).value) != null && num(document.querySelector(`[data-hi="${p.id}"]`).value) != null);
+        const pf = q(`[data-pf="${p.id}"]`), on = q(`[data-rel="${p.id}"]`).checked;
+        let empty, sum;
+        if (isBool(p)) { const v = q(`[data-bv="${p.id}"]`).value; empty = !v; sum = v ? BL[v] : 'No value'; }
+        else {
+          const lo = num(q(`[data-lo="${p.id}"]`).value), hi = num(q(`[data-hi="${p.id}"]`).value);
+          empty = !(lo != null && hi != null); sum = empty ? 'No values' : `${fmt(lo)} – ${fmt(hi)}${p.unit ? ' ' + p.unit : ''}`;
+        }
         pf.classList.toggle('missing', on && empty);
-        const w = document.querySelector(`[data-pwarn="${p.id}"]`);
+        q(`[data-psum="${p.id}"]`).textContent = on ? sum : 'Not relevant';
+        const w = q(`[data-pwarn="${p.id}"]`);
         if (isBool(p)) { w.textContent = ''; return; }
-        const lo = num(document.querySelector(`[data-lo="${p.id}"]`).value), hi = num(document.querySelector(`[data-hi="${p.id}"]`).value);
+        const lo = num(q(`[data-lo="${p.id}"]`).value), hi = num(q(`[data-hi="${p.id}"]`).value);
         let m = '', warn = true;
         if ((lo == null) !== (hi == null)) m = 'Enter both a lower and an upper value.';
         else if (lo != null && lo > hi) m = 'Lower value exceeds upper value.';
@@ -976,18 +1191,23 @@ function editProduct(id){
         check(p);
         document.querySelectorAll(`[data-lo="${p.id}"],[data-hi="${p.id}"]`).forEach(i => {
           i.oninput = () => check(p);
-          // On leaving the field, snap to the parameter's resolution and range.
-          i.onchange = () => { const v = num(i.value); if (v != null) i.value = conformValue(p, v); check(p); };
+          // On leaving the field, snap to the parameter's precision and range.
+          i.onchange = () => { const v = num(i.value); if (v != null && i.tagName === 'INPUT') i.value = conformValue(p, v); check(p); };
         });
-        const cb = document.querySelector(`[data-rel="${p.id}"]`);
-        if (isBool(p)) document.querySelector(`[data-bv="${p.id}"]`).onchange = () => check(p);
+        const cb = q(`[data-rel="${p.id}"]`);
+        if (isBool(p)) q(`[data-bv="${p.id}"]`).onchange = () => check(p);
         cb.onchange = () => {
-          document.querySelector(`[data-pf="${p.id}"]`).classList.toggle('off', !cb.checked);
+          const pf = q(`[data-pf="${p.id}"]`);
+          pf.classList.toggle('off', !cb.checked);
+          if (cb.checked) pf.classList.remove('collapsed');
           setTimeout(() => check(p));
-          const wi = document.querySelector(`[data-pw="${p.id}"]`);
+          const wi = q(`[data-pw="${p.id}"]`);
           if (cb.checked && (wi.value === '' || Number(wi.value) === 0)) wi.value = p.weight > 0 ? p.weight : 5;
         };
+        q(`[data-ptog="${p.id}"]`).onclick = () => q(`[data-pf="${p.id}"]`).classList.toggle('collapsed');
       });
+      $('#pExpand').onclick = () => document.querySelectorAll('.pfield').forEach(f => f.classList.remove('collapsed'));
+      $('#pCollapse').onclick = () => document.querySelectorAll('.pfield').forEach(f => f.classList.add('collapsed'));
       if (!id) $('#fName').focus();
     });
 }
@@ -1027,7 +1247,10 @@ function renderData(box){
 }
 
 /* ======================= CSV ======================= */
-// [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Default, Weight, Description
+// [PARAMETERS] Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description
+//   Resolution: Number = 1 / 0.1 / 0.02 / Variable; % = precision (1 / 0.1 / 0.01). Step: % slider step.
+//   Values: Variable values separated by semicolons. Rounding: Nearest / Round up / Round down.
+// [PRODUCTS]   Product, Description, Link, then per parameter:
 //   Type: cm | % | Y/N   (Number accepted for older files)
 // [PRODUCTS]   Product, Notes, then per parameter:
 //   numeric: "<Name> Lower", "<Name> Upper";  Yes/No: "<Name> Value" (Yes / No / Either)
@@ -1043,14 +1266,21 @@ function parseType(t, unit){
 }
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(){
-  const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'], ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Default', 'Weight', 'Description']];
-  S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit, plain(p.min), plain(p.max), p.def == null ? '' : isBool(p) ? BL[p.def] : plain(p.def), plain(p.weight), p.details]));
+  const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'],
+    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Rounding', 'Default', 'Weight', 'Description']];
+  S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
+    isVar(p) ? '' : plain(p.min), isVar(p) ? '' : plain(p.max),
+    isBool(p) ? '' : isVar(p) ? 'Variable' : plain(resOf(p)),
+    p.type === 'percent' ? plain(stepOf(p)) : '',
+    isVar(p) ? varVals(p).join('; ') : '',
+    isBool(p) ? '' : ROUND[p.round],
+    p.def == null ? '' : isBool(p) ? BL[p.def] : plain(p.def), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
-  const h = ['Product', 'Description'];
+  const h = ['Product', 'Description', 'Link'];
   S.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
   rows.push(h);
   S.products.forEach(pr => {
-    const r = [pr.name, pr.notes];
+    const r = [pr.name, pr.notes, pr.link || ''];
     S.parameters.forEach(p => {
       if (isBool(p)) r.push(pr.flags[p.id] ? BL[pr.flags[p.id]] : '');
       else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
@@ -1081,7 +1311,7 @@ function splitBound(h){
 }
 function fromCSV(text){
   const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
-  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, adjusted = 0;
+  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, linkIdx = -1, adjusted = 0;
   const findP = name => out.parameters.find(x => x.name.toLowerCase() === name.toLowerCase());
   for (const row of rows) {
     if (row.every(x => !x.trim())) continue;
@@ -1094,27 +1324,38 @@ function fromCSV(text){
       const name = (col(['name', 'parameter']) || '').trim();
       if (!name) continue;
       if (findP(name)) { notes.push(`Duplicate parameter "${name}" was ignored.`); continue; }
-      const unit = (col(['unit', 'units']) || '').trim(), type = parseType(col(['type']), unit), probe = {type};
+      const unit = (col(['unit', 'units']) || '').trim(), type = parseType(col(['type']), unit);
+      const rcol = String(col(['resolution', 'precision']) ?? '').trim().toLowerCase();
+      const valList = String(col(['values', 'custom values']) ?? '').split(/[;|]/).map(num).filter(x => x != null);
+      let res = null;
+      if (type === 'number') res = rcol.startsWith('var') || (!rcol && valList.length > 1) ? 'var' : NUM_RES.includes(String(num(rcol))) ? num(rcol) : 1;
+      if (type === 'percent') res = PCT_PREC.includes(String(num(rcol))) ? num(rcol) : 1;
+      const probe = {type, res};
+      const rr = String(col(['rounding', 'round']) ?? '').toLowerCase();
       let w = num(col(['weight']));
       w = w == null ? 5 : Math.max(0, Math.min(10, Math.round(w)));
       out.parameters.push({id: uid('p'), name, type, unit: type === 'boolean' ? '' : (TYPES[type].unit || unit),
-        min: type === 'boolean' ? null : roundP(probe, num(col(['range min', 'min', 'minimum']))),
-        max: type === 'boolean' ? null : roundP(probe, num(col(['range max', 'max', 'maximum']))),
+        min: type === 'boolean' || res === 'var' ? null : roundP(probe, num(col(['range min', 'min', 'minimum']))),
+        max: type === 'boolean' || res === 'var' ? null : roundP(probe, num(col(['range max', 'max', 'maximum']))),
+        res, step: type === 'percent' ? (num(col(['step', 'slider step'])) > 0 ? num(col(['step', 'slider step'])) : 25) : null,
+        vals: res === 'var' ? [...new Set(valList)] : [],
+        round: rr.includes('up') ? 'up' : rr.includes('down') ? 'down' : 'nearest',
         weight: w, details: (col(['description', 'details']) || '').trim()});
       const np = out.parameters.at(-1), dv = col(['default', 'default value']);
       np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : conformValue(np, num(dv));
     }
     else if (section === '[PRODUCTS]') {
       if (!cols) {
-        cols = []; nameIdx = 0; notesIdx = -1;
+        cols = []; nameIdx = 0; notesIdx = -1; linkIdx = -1;
         row.forEach((raw, i) => {
           const h = raw.trim(), l = h.toLowerCase();
           if (['product', 'name', 'model'].includes(l)) nameIdx = i;
           else if (['notes', 'note', 'description'].includes(l)) notesIdx = i;
+          else if (['link', 'url', 'website'].includes(l)) linkIdx = i;
           else { const b = splitBound(h); if (b) {
             let p = findP(b[0]);
             if (!p) {
-              p = {id: uid('p'), name: b[0], type: b[1] === 'v' ? 'boolean' : 'number', unit: '', min: null, max: null, weight: 5, details: ''};
+              p = {id: uid('p'), name: b[0], type: b[1] === 'v' ? 'boolean' : 'number', unit: '', min: null, max: null, res: 1, vals: [], round: 'nearest', weight: 5, details: ''};
               out.parameters.push(p);
               notes.push(`Parameter "${b[0]}" was found only in the product columns and was added with default settings.`);
             }
@@ -1125,7 +1366,7 @@ function fromCSV(text){
       }
       const name = (row[nameIdx] || '').trim();
       if (!name) continue;
-      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', ranges: {}, flags: {}, rel: {}};
+      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', link: linkIdx >= 0 ? normLink(row[linkIdx]) : '', ranges: {}, flags: {}, rel: {}};
       cols.forEach(([i, p, k]) => {
         const c = row[i];
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
@@ -1136,7 +1377,7 @@ function fromCSV(text){
     }
   }
   if (adjusted) notes.push(`${adjusted} product value(s) were adjusted to match their parameter's resolution and range.`);
-  if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Weight, Description).');
+  if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description).');
   return {data: out, notes};
 }
 $('#fileIn').onchange = async e => {
@@ -1177,14 +1418,21 @@ $('#sheetSave').onclick = () => { const err = sheetSave && sheetSave(); if (type
 
 /* ======================= SAMPLE DATA ======================= */
 function sample(){
-  const defs = [['Length', 'cm', 0, 30, 8, 'Measured to the nearest 0.1 cm.'], ['Coverage', 'percent', 0, 100, 6, 'Set in 25% increments.'], ['Option Required', 'boolean', null, null, 9, 'Yes or No.']];
-  const params = defs.map(d => ({id: uid('p'), name: d[0], type: d[1], unit: TYPES[d[1]].unit || '', min: d[2], max: d[3], weight: d[4], details: d[5], def: null}));
-  params[0].def = 5; params[1].def = 50; params[2].def = 'no';
-  const rows = [['Product A', 'Example only', [2, 10.5], [0, 50], 'no', {}], ['Product B', 'Example only', [5, 20], [25, 100], 'either', {}],
-    ['Product C', 'Example only', [1, 15], [0, 75], 'yes', {2: {on: false, w: null}, 0: {on: true, w: 3}}]];
+  const P0 = (name, type, extra) => Object.assign({id: uid('p'), name, type, unit: TYPES[type].unit || '', min: null, max: null, def: null, weight: 5, details: '', res: 1, step: 25, vals: [], round: 'nearest'}, extra);
+  const params = [
+    P0('Length', 'cm', {min: 0, max: 30, def: 5, weight: 8, details: 'Measured to the nearest 0.1 cm.'}),
+    P0('Coverage', 'percent', {min: 0, max: 100, def: 50, weight: 6, res: 1, step: 25, details: 'Precision 1%, slider step 25%.'}),
+    P0('Changes per week', 'number', {unit: 'per week', res: 'var', vals: [1, 2, 3, 5, 7], def: 3, weight: 4, round: 'up', details: 'Defined values; typed entries round up.'}),
+    P0('Option Required', 'boolean', {def: 'no', weight: 9, details: 'Yes or No.'})
+  ];
+  const rows = [
+    ['Product A', 'Example only', 'https://example.com/product-a', [2, 10.5], [0, 50], [1, 3], 'no', {}],
+    ['Product B', 'Example only', '', [5, 20], [25, 100], [2, 5], 'either', {}],
+    ['Product C', 'Example only', 'https://example.com/product-c', [1, 15], [0, 75], [3, 7], 'yes', {3: {on: false, w: null}, 0: {on: true, w: 3}}]
+  ];
   const products = rows.map(r => {
-    const rel = {}; Object.entries(r[5]).forEach(([i, v]) => rel[params[i].id] = v);
-    return {id: uid('r'), name: r[0], notes: r[1], ranges: {[params[0].id]: r[2], [params[1].id]: r[3]}, flags: {[params[2].id]: r[4]}, rel};
+    const rel = {}; Object.entries(r[7]).forEach(([i, v]) => rel[params[i].id] = v);
+    return {id: uid('r'), name: r[0], notes: r[1], link: r[2], ranges: {[params[0].id]: r[3], [params[1].id]: r[4], [params[2].id]: r[5]}, flags: {[params[3].id]: r[6]}, rel};
   });
   return {title: 'Example Selector', parameters: params, products, inputs: {}, tab: null, selectedId: null, lastExport: null};
 }
