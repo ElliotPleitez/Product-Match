@@ -2,7 +2,7 @@
 // Pages are fetched from the network first (so one launch while online shows the latest version);
 // the saved copy is used when offline. Other files are served from the saved copy and refreshed in
 // the background.
-const VERSION = 'product-match-v28';
+const VERSION = 'product-match-v29';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {

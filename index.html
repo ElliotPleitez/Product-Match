@@ -269,7 +269,7 @@ nav.tabs button svg{width:24px;height:24px}
 nav.tabs button.on{color:var(--accent)}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10;display:flex;align-items:flex-end;justify-content:center}
 .sheet.hidden{display:none}
-.sheet-card{background:var(--bg);width:100%;max-width:640px;height:calc(100% - env(safe-area-inset-top) - 12px);border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.sheet-card{background:var(--bg);width:100%;max-width:640px;height:calc(100% - env(safe-area-inset-top) - 12px);max-height:100%;border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--card)}
 .sheet-head b{font-size:16px}
 .sheet-body{flex:1;overflow-y:auto;padding:16px 14px calc(env(safe-area-inset-bottom) + 30px);-webkit-overflow-scrolling:touch}
@@ -313,7 +313,7 @@ nav.tabs button.on{color:var(--accent)}
 #pmenu .pm-sub{font-size:12px;color:var(--muted);margin-left:auto}
 #pmenu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
 /* Match panes */
-.sec-body.vpane{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border-radius:14px;padding:2px 2px 8px}
+.sec-body.vpane{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:auto;border-radius:14px;padding:2px 2px 8px}
 section.collapsed .sec-body.vpane{display:none}
 section.collapsed .splitbar{display:none!important}
 .splitbar{position:relative;height:40px;margin:0 0 2px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;-webkit-user-select:none;user-select:none}
@@ -322,11 +322,15 @@ section.collapsed .splitbar{display:none!important}
 .splitbar.drag::after{content:attr(data-h);position:absolute;left:12px;font-size:11px;font-weight:700;color:var(--accent)}
 .splitbar .grip{pointer-events:none}
 .splitbar.locked{cursor:default}.splitbar.locked .grip{opacity:.4}
-.panebtn{flex:none;margin-left:8px;display:inline-flex;align-items:center;gap:4px;font:inherit;font-weight:700;font-size:11.5px;line-height:1;cursor:pointer;
-  color:var(--accent);background:var(--card);border:1.5px dashed var(--accent);border-radius:999px;padding:4px 9px;white-space:nowrap}
-.panebtn svg{width:16px;height:16px}
+/* scroll-pane and lock buttons: same outline icon; dashed border = off / unlocked, solid border = on / locked */
+.panebtn,.lockbtn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:30px;padding:0;cursor:pointer;
+  color:var(--accent)!important;background:var(--card)!important;border:1.5px dashed var(--accent)!important;border-radius:999px}
+.panebtn{margin-left:8px}
+.panebtn svg{width:24px;height:24px}.lockbtn svg{width:18px;height:18px}
 .panebtn .pb{fill:none;stroke:none}.panebtn .pg{stroke:currentColor}
-.panebtn.on{color:#fff;background:var(--accent);border-style:solid}
+.lockbtn svg{fill:none!important;stroke:currentColor!important;stroke-width:2}
+.panebtn.on,.splitbar.locked .lockbtn{border-style:solid!important;border-width:2px!important}
+.panebtn.on .pg,.splitbar.locked .lockbtn svg{stroke-width:2.4}
 /* locks: style 1 green/red, 2 gray/solid, 3 distinct (label) */
 .lockbtn{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:11.5px}
 .lockbtn svg{width:16px;height:16px}
@@ -400,6 +404,7 @@ textarea.grow{overflow:hidden;resize:none;min-height:64px}
 .pfield.conflict{border-color:var(--bad)!important;box-shadow:0 0 0 1px var(--bad)}
 .ntxt{color:var(--bad);font-weight:600;margin-top:3px}
 .dlg-card input{width:100%}
+body[data-lockstyle] .lockbtn .lt{display:none!important}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pgrid .btn{white-space:nowrap}
 .btn.dangerfill{background:var(--bad);border-color:var(--bad);color:#fff}
 .sec-h .btn,.sec-h .link{white-space:nowrap;flex:none}
@@ -1009,7 +1014,7 @@ function section(key, title, action, body, h2id){
   // Match sections: the body is a scrolling pane; the bar below it adjusts the split (and locks it).
   const m = key.startsWith('m-');
   const bar = m ? `<div class="splitbar" data-split="${key}"><span class="grip" aria-hidden="true"></span><button type="button" class="lockbtn" data-lock aria-label="Lock pane height"></button></div>` : '';
-  const pt = m ? `<button type="button" class="panebtn" data-pane="${key}" aria-label="Scroll pane">${ICON_PANE}<span class="lt">Scroll</span></button>` : '';
+  const pt = m ? `<button type="button" class="panebtn" data-pane="${key}" aria-label="Scroll pane">${ICON_PANE}</button>` : '';
   return `<section class="${c ? 'collapsed' : ''}" data-section="${key}">
     <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2><span class="spacer"></span>${action || ''}${pt}</div>
     <div class="sec-body">${body}</div>${bar}</section>`;
@@ -1499,11 +1504,11 @@ function layoutMatch(){
   MKEYS.forEach(k => {
     const sec = view.querySelector(`[data-section="${k}"]`), body = sec.querySelector('.sec-body'), bar = sec.querySelector('.splitbar'), pv = paneOf(k), open = !S.collapsed[k];
     const pb = sec.querySelector('[data-pane]');
-    pb.classList.toggle('on', pv.on); pb.setAttribute('aria-pressed', pv.on); pb.querySelector('.lt').textContent = pv.on ? 'Scroll on' : 'Scroll off'; pb.setAttribute('aria-label', pv.on ? 'Scroll pane on – tap for full list' : 'Scroll pane off – tap for scroll pane');
+    pb.classList.toggle('on', pv.on); pb.setAttribute('aria-pressed', pv.on); pb.setAttribute('aria-label', pv.on ? 'Scroll pane on – tap for full list' : 'Scroll pane off – tap for scroll pane');
     body.classList.toggle('vpane', pv.on);
     bar.style.display = open && pv.on ? '' : 'none';
     bar.classList.toggle('locked', pv.locked);
-    const lb = bar.querySelector('[data-lock]'); lb.innerHTML = (pv.locked ? ICON_LOCK : ICON_UNLOCK) + `<span class="lt">${pv.locked ? 'Locked' : 'Unlocked'}</span>`; lb.setAttribute('aria-label', pv.locked ? 'Locked – tap to unlock pane height' : 'Unlocked – tap to lock pane height');
+    const lb = bar.querySelector('[data-lock]'); lb.innerHTML = pv.locked ? ICON_LOCK : ICON_UNLOCK; lb.setAttribute('aria-label', pv.locked ? 'Locked – tap to unlock pane height' : 'Unlocked – tap to lock pane height');
     if (!open || !pv.on) { body.style.height = ''; return; }
     const fixed = pv.locked && pv.h ? pv.h : pv.tmp;
     if (fixed) body.style.height = fixed + 'px'; else { body.style.height = '0px'; auto.push(body); }
@@ -2638,13 +2643,20 @@ async function exportCSV(all){
 let sheetSave = null;
 // Text boxes grow to show their full content (no scrolling inside the box).
 function autoGrow(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+// Keep the editor (with Cancel and Save at its top) inside the visible area when the keyboard opens.
+function fitSheet(){
+  const sh = $('#sheet'), vv = window.visualViewport;
+  if (!vv || sh.classList.contains('hidden')) { sh.style.top = sh.style.height = ''; return; }
+  sh.style.top = vv.offsetTop + 'px'; sh.style.height = vv.height + 'px'; sh.style.bottom = 'auto';
+}
+if (window.visualViewport) { visualViewport.addEventListener('resize', fitSheet); visualViewport.addEventListener('scroll', fitSheet); }
 function openSheet(title, html, onSave, onMount){
   $('#sheetTitle').textContent = title; $('#sheetBody').innerHTML = html; $('#sheetBody').scrollTop = 0;
-  sheetSave = onSave; $('#sheet').classList.remove('hidden'); document.body.classList.add('locked');
+  sheetSave = onSave; $('#sheet').classList.remove('hidden'); document.body.classList.add('locked'); fitSheet();
   if (onMount) onMount();
   $('#sheetBody').querySelectorAll('textarea').forEach(t => { t.classList.add('grow'); t.addEventListener('input', () => autoGrow(t)); autoGrow(t); });
 }
-function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; }
+function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; fitSheet(); }
 $('#sheetCancel').onclick = () => { closeSheet(); if (DEV.ctx) devReturn(false); };
 $('#sheetSave').onclick = async () => {
   // Highlighted fields: save only after confirming that the values shown are accepted.
@@ -2700,7 +2712,10 @@ if (MKEYS.every(k => S.collapsed[k] === undefined)) MKEYS.forEach(k => S.collaps
 // Splash: logo and title for 1 second.
 {
   const sp = $('#splash'); $('#splashT').textContent = S.title || 'Product Match';
-  setTimeout(() => { sp.classList.add('hide'); setTimeout(() => sp.remove(), 400); }, 1000);
+  // Android shows its own launch screen for an installed app, so the in-app splash is skipped there.
+  const androidApp = /Android/i.test(navigator.userAgent) && window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: minimal-ui)').matches);
+  if (androidApp) sp.remove();
+  else setTimeout(() => { sp.classList.add('hide'); setTimeout(() => sp.remove(), 400); }, 1000);
 }
 document.body.setAttribute('data-lockstyle', '3');   // (not data-lock: that attribute marks the lock button)
 setTab('match');
