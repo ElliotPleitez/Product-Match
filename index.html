@@ -297,7 +297,20 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
 @keyframes dlgIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 .dlg-card b{font-size:17px}
 .dlg-card p{margin:8px 0 16px;font-size:15px;color:var(--muted);line-height:1.4}
-.dlg-acts{display:flex;gap:10px}.dlg-acts .btn{flex:1}
+.dlg-acts{display:flex;gap:10px}.dlg-acts .btn{flex:1;padding-left:8px;padding-right:8px}
+/* products that should not be used together */
+.xchips{display:flex;flex-wrap:wrap;gap:6px}
+.xchip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:6px 11px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.xchip.on{background:color-mix(in srgb,var(--bad) 14%,var(--card));border-color:var(--bad);color:var(--bad);font-weight:700}
+.xwarn{margin-top:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--card));color:var(--bad);font-size:13px;font-weight:600}
+.xwarn .xn{display:block;font-weight:400;color:var(--ink);margin-top:3px}
+.card.item.xconf{border-color:var(--bad);box-shadow:inset 4px 0 0 var(--bad);background:color-mix(in srgb,var(--bad) 7%,var(--card))}
+.xtag{display:inline-block;margin-top:4px;font-size:11.5px;font-weight:700;color:#fff;background:var(--bad);border-radius:6px;padding:2px 7px}
+.xico{color:var(--bad);font-weight:700;font-size:12px;margin-left:6px;white-space:nowrap}
+.alts button.xalt{border-color:var(--bad);color:var(--bad)}
+.chip.xc{border-color:var(--bad)}.chip.xc b{color:var(--bad)}
+.dlg-card input{width:100%}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pgrid .btn{white-space:nowrap}
 .btn.dangerfill{background:var(--bad);border-color:var(--bad);color:#fff}
 .sec-h .btn,.sec-h .link{white-space:nowrap;flex:none}
 .sec-h h2{min-width:0}
@@ -326,7 +339,8 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
 <input type="file" id="fileIn" accept=".csv,text/csv,text/plain" hidden>
 <div id="dlg" class="dlg hidden" role="alertdialog" aria-modal="true" aria-labelledby="dlgT">
   <div class="dlg-card"><b id="dlgT"></b><p id="dlgM"></p>
-    <div class="dlg-acts"><button class="btn" id="dlgNo">Cancel</button><button class="btn primary" id="dlgOk">OK</button></div></div>
+    <input id="dlgIn" type="text" autocomplete="off" style="display:none;margin:-6px 0 14px">
+    <div class="dlg-acts"><button class="btn" id="dlgNo">Cancel</button><button class="btn" id="dlgAlt" style="display:none"></button><button class="btn primary" id="dlgOk">OK</button></div></div>
 </div>
 <div id="toast"></div>
 
@@ -356,6 +370,43 @@ function applyDM(){
 const PCT_PREC = ['1', '0.1', '0.01'];                // % precision options
 const ROUND = {nearest: 'Nearest', up: 'Round up', down: 'Round down'};
 const decOf = r => (String(r).split('.')[1] || '').length;
+/* Profiles: each one is an independent data set (title, parameters, products, inputs, view). */
+const PKEY = 'productMatch.profiles.v1', DKEY = id => 'productMatch.profile.' + id;
+let PM = loadProfiles();
+function loadProfiles(){
+  try { const m = JSON.parse(localStorage.getItem(PKEY)); if (m && Array.isArray(m.list) && m.list.length && m.list.some(x => x.id === m.active)) return m; } catch (e) {}
+  const id = 'pf' + Date.now().toString(36);
+  let old = null, name = 'Profile 1';
+  try { old = localStorage.getItem(KEY); const t = old && JSON.parse(old).title; if (t && t !== 'Product Match') name = t; } catch (e) {}
+  const m = {active: id, list: [{id, name}]};
+  try { if (old) localStorage.setItem(DKEY(id), old); localStorage.setItem(PKEY, JSON.stringify(m)); } catch (e) {}
+  return m;
+}
+const saveMeta = () => { try { localStorage.setItem(PKEY, JSON.stringify(PM)); } catch (e) { toast('Unable to save on this device.'); } };
+const profName = (id = PM.active) => (PM.list.find(x => x.id === id) || {}).name || 'Profile';
+function profData(id){
+  if (id === PM.active) return S;
+  try { const s = JSON.parse(localStorage.getItem(DKEY(id))); if (s && s.parameters) return fix(s); } catch (e) {}
+  return blank();
+}
+function uniqueProfName(name, except){
+  name = String(name || '').trim() || 'Profile';
+  const used = n => PM.list.some(x => x.id !== except && x.name.toLowerCase() === n.toLowerCase());
+  if (!used(name)) return name;
+  let k = 2; while (used(`${name} (${k})`)) k++;
+  return `${name} (${k})`;
+}
+function addProfile(name, data){
+  const id = 'pf' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  try { localStorage.setItem(DKEY(id), JSON.stringify(data)); } catch (e) { toast('Unable to save on this device.'); return null; }
+  PM.list.push({id, name: uniqueProfName(name)}); saveMeta();
+  return id;
+}
+function switchProfile(id, sec = 'data'){
+  save(); PM.active = id; saveMeta(); S = load();
+  S.tab = 'settings'; applyDM(); openSettings(sec);
+  toast('Profile: ' + profName());
+}
 let S = load();
 
 function blank(){ return {title: 'Product Match', parameters: [], products: [], inputs: {}, tab: null, selectedId: null, lastExport: null}; }
@@ -385,6 +436,10 @@ function fix(s){
     p.vals = Array.isArray(p.vals) ? p.vals : [];
   });
   s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; if (pr.link == null) pr.link = ''; });
+  // Do-not-combine pairs: kept symmetric, limited to existing products.
+  const ids = new Set(s.products.map(pr => pr.id));
+  s.products.forEach(pr => { pr.avoid = [...new Set((Array.isArray(pr.avoid) ? pr.avoid : []).filter(x => ids.has(x) && x !== pr.id))]; if (pr.avoidNote == null) pr.avoidNote = ''; });
+  s.products.forEach(pr => pr.avoid.forEach(x => { const o = s.products.find(q => q.id === x); if (!o.avoid.includes(pr.id)) o.avoid.push(pr.id); }));
   s.parameters.forEach(p => { p.vals = (p.vals || []).filter(v => v && typeof v === 'object'); });
   // Number (Variable) lists saved as plain numbers become listed values; references move to the value ids.
   s.parameters.forEach(p => {
@@ -403,11 +458,11 @@ function fix(s){
   return s;
 }
 function load(){
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.parameters) return fix(s); } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(DKEY(PM.active))); if (s && s.parameters) return fix(s); } catch (e) {}
   return blank();
 }
 function save(){
-  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  try { localStorage.setItem(DKEY(PM.active), JSON.stringify(S)); }
   catch (e) { toast('Unable to save on this device. Export a CSV backup.'); }
 }
 
@@ -684,7 +739,8 @@ const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 function updateHeader(){
   $('#title').textContent = S.title || 'Product Match';
   document.title = S.title || 'Product Match';
-  $('#subtitle').textContent = S.tab === 'settings' ? 'Settings' : `${S.parameters.length} parameters · ${S.products.length} products`;
+  const pn = PM.list.length > 1 ? profName() + ' · ' : '';
+  $('#subtitle').textContent = S.tab === 'settings' ? pn + 'Settings' : `${pn}${S.parameters.length} parameters · ${S.products.length} products`;
   const g = $('#gear');
   g.innerHTML = S.tab === 'settings' ? 'Done' : GEAR;
   g.setAttribute('aria-label', S.tab === 'settings' ? 'Close settings' : 'Settings');
@@ -861,16 +917,22 @@ function animateOut(el, done){
   a.onfinish = done;
 }
 // In-app confirmation (same style for every delete and for saving with open prompts). Resolves true/false.
-function askConfirm({title, msg, ok = 'OK', danger = false, cancel = true}){
+// alt: label of a third button (resolves 'alt'). input: initial text (resolves the trimmed text, or null).
+function askConfirm({title, msg, ok = 'OK', danger = false, cancel = true, alt = null, input = null}){
   return new Promise(res => {
-    const d = $('#dlg');
-    $('#dlgT').textContent = title; $('#dlgM').textContent = msg;
+    const d = $('#dlg'), inp = $('#dlgIn'), ab = $('#dlgAlt');
+    $('#dlgT').textContent = title; $('#dlgM').textContent = msg || ''; $('#dlgM').style.display = msg ? '' : 'none';
     $('#dlgNo').style.display = cancel ? '' : 'none';
+    ab.style.display = alt ? '' : 'none'; ab.textContent = alt || '';
+    inp.style.display = input != null ? '' : 'none'; inp.value = input ?? '';
     const b = $('#dlgOk'); b.textContent = ok; b.className = 'btn ' + (danger ? 'dangerfill' : 'primary');
     d.classList.remove('hidden');
-    const end = v => { d.classList.add('hidden'); $('#dlgOk').onclick = $('#dlgNo').onclick = d.onclick = null; res(v); };
-    $('#dlgOk').onclick = () => end(true); $('#dlgNo').onclick = () => end(false);
-    d.onclick = e => { if (e.target === d) end(false); };
+    const end = v => { d.classList.add('hidden'); $('#dlgOk').onclick = $('#dlgNo').onclick = ab.onclick = d.onclick = inp.onkeydown = null; res(v); };
+    $('#dlgOk').onclick = () => end(input != null ? (inp.value.trim() || null) : true);
+    $('#dlgNo').onclick = () => end(input != null ? null : false);
+    ab.onclick = () => end('alt');
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#dlgOk').click(); } };
+    d.onclick = e => { if (e.target === d) $('#dlgNo').click(); };
   });
 }
 // Brief highlight (shake, then fades out). With text, a comment shows beside the field and fades out too.
@@ -961,7 +1023,7 @@ function renderMatch(){
     section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`, null, 'params') +
     section('m-result', 'Result', '', '<div id="result"></div>', null, 'result') +
     section('m-list', 'All Products', '', `<div id="list"></div>
-      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span></div>`, 'listTitle', 'products');
+      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span><span style="--c:var(--bad)">⚠ Do not combine with the selected product</span></div>`, 'listTitle', 'products');
   // Value above the slider: shown as text; tapping it turns it into an entry field.
   // The entry is accepted when the field loses focus, using the parameter's rounding.
   view.querySelectorAll('input[data-in]').forEach(el => {
@@ -1177,7 +1239,7 @@ function updateMatch(){
     const C = 2 * Math.PI * 64, col = shown.score >= 95 ? 'var(--good)' : shown.score >= 60 ? 'var(--warn)' : 'var(--bad)';
     const fits = act.map(p => fitRow(p, shown.fits[p.id])).join('');
     const notRel = act.length - shown.n;
-    const alts = res.filter(r => r !== shown).slice(0, 3).map(r => `<button data-pick="${r.pr.id}">${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
+    const alts = res.filter(r => r !== shown).slice(0, 3).map(r => `<button data-pick="${r.pr.id}" class="${conflicts(shown.pr, r.pr) ? 'xalt' : ''}">${conflicts(shown.pr, r.pr) ? '⚠ ' : ''}${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
     box.innerHTML = `<div class="card">
       <div class="result-top">
         <div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="64" fill="none" stroke="var(--soft)" stroke-width="13"/>
@@ -1186,6 +1248,7 @@ function updateMatch(){
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
           <div class="pname">${esc(shown.pr.name)}</div>
           ${shown.pr.notes ? `<div class="muted small dtext d-result">${esc(shown.pr.notes)}</div>` : ''}
+          ${avoidOf(shown.pr).length ? `<div class="xwarn">⚠ Do not combine with: ${esc(avoidOf(shown.pr).map(o => o.name).join(', '))}${shown.pr.avoidNote ? `<span class="xn">${esc(shown.pr.avoidNote)}</span>` : ''}</div>` : ''}
           <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div>
           ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
       </div>
@@ -1207,9 +1270,12 @@ function updateMatch(){
       else val = esc(rangeText(r.pr, p));
       return `<div class="chip ${!rel ? 'na' : f ? f.st : ''}"><span class="muted">${esc(p.name)}</span><b>${val}</b></div>`;
     }).join('');
-    return `<div class="card item ${scored && r === shown ? 'sel' : ''}" data-row="${r.pr.id}">
+    const xc = scored && shown && conflicts(shown.pr, r.pr), na = avoidOf(r.pr).length;
+    return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
-        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${r.pr.notes ? `<div class="xsmall muted dtext d-products">${esc(r.pr.notes)}</div>` : ''}</div>
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${na ? `<span class="xico" title="Has do-not-combine products">⚠ ${na}</span>` : ''}
+          ${xc ? `<div><span class="xtag">⚠ Do not combine with ${esc(shown.pr.name)}</span></div>` : ''}
+          ${r.pr.notes ? `<div class="xsmall muted dtext d-products">${esc(r.pr.notes)}</div>` : ''}</div>
         ${scored ? `<div class="scol"><div class="srow"><div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div></div><div class="sctx">(score: ${fmt(r.pts)} of ${fmt(r.tot)})</div></div>` : ''}</div>
       <div class="chips sync">${chips}</div></div>`;
   }).join('');
@@ -1624,7 +1690,7 @@ function renderProducts(box, act){
         const rel = relOf(pr, p), on = rel.on && rel.w > 0;
         const val = on ? esc(rangeText(pr, p)) : 'N/A';
         return chip(esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na', 'pf:' + p.id);
-      }).join('');
+      }).join('') + (avoidOf(pr).length ? chip('⚠ Do not combine', esc(avoidOf(pr).map(o => o.name).join(', ')), 'xc', 'avoid') : '');
       return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '', 'products');
     }).join('')
     : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`;
@@ -1640,7 +1706,7 @@ function renderProducts(box, act){
     if (act === 'up' || act === 'down') return moveItem(S.products, i, act === 'up' ? -1 : 1, id);
     if (act === 'dup') {
       const c = JSON.parse(JSON.stringify(S.products[i])); c.id = uid('r'); c.name += ' (copy)';
-      S.products.splice(i + 1, 0, c); save(); return afterSave(c.id, true);
+      S.products.splice(i + 1, 0, c); fix(S); save(); return afterSave(c.id, true);
     }
     if (act === 'del') {
       const nm = S.products[i].name, np = S.parameters.length;
@@ -1650,12 +1716,15 @@ function renderProducts(box, act){
         animateOut(view.querySelector(`[data-card="${id}"]`), () => {
           const k = S.products.findIndex(p => p.id === id); if (k < 0) return;
           S.products.splice(k, 1); if (S.selectedId === id) S.selectedId = null;
+          S.products.forEach(o => o.avoid = (o.avoid || []).filter(x => x !== id));
           save(); refresh(null, snapshot());
         });
       });
     }
   };
 }
+const avoidOf = pr => (pr.avoid || []).map(x => S.products.find(q => q.id === x)).filter(Boolean);
+const conflicts = (a, b) => !!(a && b && a.id !== b.id && (a.avoid || []).includes(b.id));
 function normLink(t){
   t = String(t || '').trim();
   if (!t) return '';
@@ -1701,6 +1770,11 @@ function editProduct(id, field){
     <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
     <div class="field"><label>Link (optional)</label><input id="fLink" type="url" inputmode="url" autocapitalize="off" autocorrect="off" value="${esc(pr.link || '')}" placeholder="https://…">
       <div class="xsmall muted" style="margin:5px 2px">Opened from the Result section on the Match screen.</div></div>
+    <div class="field" id="avWrap"><label>⚠ Do not combine with <span class="pill" id="avCount"></span></label>
+      ${S.products.some(o => o.id !== pr.id) ? `<div class="xchips" id="avList">${S.products.filter(o => o.id !== pr.id).map(o => { const on = (pr.avoid || []).includes(o.id);
+        return `<button type="button" class="xchip ${on ? 'on' : ''}" data-av="${o.id}" aria-pressed="${on}">${on ? '⚠ ' : ''}${esc(o.name)}</button>`; }).join('')}</div>` : '<div class="xsmall muted">Add other products first.</div>'}
+      <textarea id="fAvNote" style="margin-top:8px;min-height:60px" placeholder="Reason, e.g. silver inactivates collagenase (per manufacturer instructions)">${esc(pr.avoidNote || '')}</textarea>
+      <div class="xsmall muted" style="margin:5px 2px">Tap a product to mark that the two should not be used together; the mark applies to both products and is shown on the Match screen.</div></div>
     <div class="sec-h" style="margin:4px 2px 8px"><label class="small muted" style="font-weight:600">Parameters – check each one relevant to this product and enter its weight (0–10)</label></div>
     <div class="row" style="justify-content:space-between;margin:-4px 0 8px"><button type="button" class="link" id="pExpand">Expand all</button><button type="button" class="link" id="pCollapse">Collapse all</button></div>
     ${fields}
@@ -1722,8 +1796,11 @@ function editProduct(id, field){
           if (lo != null || hi != null) ranges[p.id] = [lo, hi];
         }
       }
-      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel});
+      const avoid = [...document.querySelectorAll('#avList .xchip.on')].map(b => b.dataset.av);
+      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, avoid, avoidNote: $('#fAvNote').value.trim()});
       if (!id) S.products.push(pr);
+      S.products.forEach(o => { if (o === pr) return; const has = (o.avoid || []).includes(pr.id), want = avoid.includes(o.id);
+        if (want && !has) (o.avoid = o.avoid || []).push(pr.id); if (!want && has) o.avoid = o.avoid.filter(x => x !== pr.id); });
       save(); afterSave(pr.id, !id);
     },
     () => {
@@ -1781,11 +1858,19 @@ function editProduct(id, field){
         };
         q(`[data-ptog="${p.id}"]`).onclick = () => q(`[data-pf="${p.id}"]`).classList.toggle('collapsed');
       });
+      const avCount = () => { const n = document.querySelectorAll('#avList .xchip.on').length; $('#avCount').textContent = n ? n : 'None'; };
+      document.querySelectorAll('#avList .xchip').forEach(b => b.onclick = () => {
+        const on = !b.classList.contains('on'), nm = S.products.find(o => o.id === b.dataset.av).name;
+        b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.textContent = (on ? '⚠ ' : '') + nm;
+        note(b, null, {quiet: true}); avCount();
+      });
+      avCount();
       $('#pExpand').onclick = () => document.querySelectorAll('.pfield').forEach(f => f.classList.remove('collapsed'));
       $('#pCollapse').onclick = () => document.querySelectorAll('.pfield').forEach(f => f.classList.add('collapsed'));
       if (!id) $('#fName').focus();
       if (field === 'name') focusField('#fName');
       else if (field === 'desc') focusField('#fNotes');
+      else if (field === 'avoid') focusField('#avList');
       else if (field && field.startsWith('pf:')) {
         const pf = q(`[data-pf="${field.slice(3)}"]`);
         if (pf) { pf.classList.remove('collapsed'); focusField(pf); }
@@ -1796,19 +1881,25 @@ function editProduct(id, field){
 /* ======================= DATA TAB ======================= */
 function renderData(box){
   const list = issues();
+  const counts = id => { const d = profData(id); return `${d.parameters.length} parameters · ${d.products.length} products`; };
   box.innerHTML = `
+    <div class="subh">Profiles</div><div class="card">
+      <div class="field" style="margin:0 0 10px"><label>Active profile</label><select id="profSel">${PM.list.map(x => `<option value="${x.id}" ${x.id === PM.active ? 'selected' : ''}>${esc(x.name)} – ${counts(x.id)}</option>`).join('')}</select></div>
+      <div class="pgrid"><button class="btn" id="pfNew">+ New</button><button class="btn" id="pfRen">Rename</button><button class="btn" id="pfDup">Duplicate</button><button class="btn danger" id="pfDel" ${PM.list.length > 1 ? '' : 'disabled'}>Delete</button></div>
+      <p class="xsmall muted" style="margin-bottom:0">Each profile keeps its own title, parameters, products, combinations, inputs and view settings, separate from the others. Switching profiles does not change any other profile.</p></div>
     <div class="subh">Settings</div><div class="card"><div class="field" style="margin:0"><label>Selector title</label><input id="titleIn" value="${esc(S.title)}" placeholder="Title"></div></div>
     <div class="subh">Settings File (CSV)</div><div class="card">
-      <p class="small muted" style="margin-top:0">Import or export all parameters, types, defaults, weights, relevance and products as one CSV file. Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
-      <div class="pair"><button class="btn" id="impBtn" style="flex:1">Import CSV</button><button class="btn primary" id="expBtn" style="flex:1" ${S.parameters.length ? '' : 'disabled'}>Export CSV</button></div>
-      <p class="xsmall muted" style="margin-bottom:0">Last export: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p></div>
+      <p class="small muted" style="margin-top:0">Import a CSV as a new profile or into <b>${esc(profName())}</b>. Export this profile, or all ${PM.list.length} profile${PM.list.length === 1 ? '' : 's'} in one file (re-importing that file restores each profile). Export uses the share sheet: choose <b>Save to Files</b> (On My iPhone, iCloud Drive or OneDrive).</p>
+      <div class="pair"><button class="btn" id="impBtn" style="flex:1">Import CSV</button><button class="btn primary" id="expBtn" style="flex:1" ${S.parameters.length ? '' : 'disabled'}>Export profile</button></div>
+      <button class="btn block" id="expAll" style="margin-top:8px">Export all profiles (${PM.list.length})</button>
+      <p class="xsmall muted" style="margin-bottom:0">Last export of this profile: ${S.lastExport ? esc(new Date(S.lastExport).toLocaleString()) : 'none'}. Export after significant changes as a backup.</p></div>
     <div class="subh">Review</div><div class="card">
       ${list.length ? `<div class="small warn-text" style="margin-bottom:6px"><b>${list.length} item(s) need attention</b></div>${list.map(t => `<div class="issue">${esc(t)}</div>`).join('')}`
         : `<div class="small c-within">No inconsistencies found.</div>`}
       ${nonConforming() ? `<button class="btn primary block" id="fixBtn" style="margin-top:10px">Apply parameter resolution and range to products (${nonConforming()})</button>` : ''}</div>
     <div class="subh">Other</div><div class="card">
       <button class="btn block" id="sampleBtn">Load sample data</button>
-      <button class="btn danger block" id="resetBtn">Erase all data</button>
+      <button class="btn danger block" id="resetBtn">Erase this profile's data</button>
       <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p></div>`;
   $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; document.title = S.title || 'Product Match'; };
   $('#impBtn').onclick = () => $('#fileIn').click();
@@ -1816,13 +1907,38 @@ function renderData(box){
     if (!(await askConfirm({title: 'Apply resolution and range?', ok: 'Apply', msg: 'Product values will be rounded to each parameter\'s resolution and limited to its allowable range. Export a CSV first to keep the current values.'}))) return;
     conformAll(); save(); renderSettings(); toast('Product values updated');
   };
-  $('#expBtn').onclick = exportCSV;
+  $('#expBtn').onclick = () => exportCSV(false);
+  $('#expAll').onclick = () => exportCSV(true);
+  $('#profSel').onchange = e => switchProfile(e.target.value);
+  $('#pfNew').onclick = async () => {
+    const nm = await askConfirm({title: 'New profile', msg: 'Name for the new, empty profile.', ok: 'Create', input: uniqueProfName('Profile ' + (PM.list.length + 1))});
+    if (!nm) return;
+    const id = addProfile(nm, blank()); if (id) switchProfile(id, 'params');
+  };
+  $('#pfRen').onclick = async () => {
+    const nm = await askConfirm({title: 'Rename profile', ok: 'Rename', input: profName()});
+    if (!nm) return;
+    PM.list.find(x => x.id === PM.active).name = uniqueProfName(nm, PM.active); saveMeta(); renderSettings();
+  };
+  $('#pfDup').onclick = async () => {
+    const nm = await askConfirm({title: 'Duplicate profile', msg: `A separate copy of "${profName()}" is made; changes to one do not affect the other.`, ok: 'Duplicate', input: uniqueProfName(profName() + ' (copy)')});
+    if (!nm) return;
+    save(); const id = addProfile(nm, JSON.parse(JSON.stringify(S))); if (id) switchProfile(id);
+  };
+  $('#pfDel').onclick = async () => {
+    if (PM.list.length < 2) return;
+    if (!(await askConfirm({title: `Delete profile "${profName()}"?`, ok: 'Delete', danger: true, msg: `Its ${S.parameters.length} parameters, ${S.products.length} products and inputs will be removed from this device. Other profiles are not changed. This cannot be undone; export a CSV first if a backup is needed.`}))) return;
+    const old = PM.active, el = box.closest('.card') || null;
+    try { localStorage.removeItem(DKEY(old)); } catch (e) {}
+    PM.list = PM.list.filter(x => x.id !== old); PM.active = PM.list[0].id; saveMeta(); S = load();
+    applyDM(); openSettings('data'); toast('Profile deleted');
+  };
   $('#sampleBtn').onclick = async () => {
     if ((S.parameters.length || S.products.length) && !(await askConfirm({title: 'Load sample data?', ok: 'Replace', danger: true, msg: 'Current parameters and products will be replaced with sample data. Export a CSV first if a backup is needed.'}))) return;
     S = sample(); save(); openSettings('data'); toast('Sample data loaded');
   };
   $('#resetBtn').onclick = async () => {
-    if (!(await askConfirm({title: 'Erase all data?', ok: 'Erase', danger: true, msg: 'All parameters, products and inputs will be erased from this device. This cannot be undone; export a CSV first if a backup is needed.'}))) return;
+    if (!(await askConfirm({title: `Erase "${profName()}"?`, ok: 'Erase', danger: true, msg: 'All parameters, products and inputs in this profile will be erased. Other profiles are not changed. This cannot be undone; export a CSV first if a backup is needed.'}))) return;
     S = blank(); save(); openSettings('params');
   };
 }
@@ -1849,10 +1965,10 @@ function parseType(t, unit){
   return 'number';   // Number; earlier 'cm' and 'length' types are Numbers
 }
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-function toCSV(){
-  const rows = [['[SETTINGS]'], ['Title', S.title], [], ['[PARAMETERS]'],
+function toCSV(d = S){
+  const rows = [['[SETTINGS]'], ['Title', d.title], [], ['[PARAMETERS]'],
     ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Slider', 'Rounding', 'Default', 'Weight', 'Description']];
-  S.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
+  d.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isList(p) ? '' : plain(p.min), isList(p) ? '' : plain(p.max),
     isBool(p) || p.type === 'text' ? '' : isNumVar(p) ? 'Variable' : plain(resOf(p)),
     p.type === 'percent' || (p.type === 'number' && !isNumVar(p)) ? plain(stepOf(p)) : '',
@@ -1862,12 +1978,12 @@ function toCSV(){
     isBool(p) || isList(p) ? '' : ROUND[p.round],
     p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
-  const h = ['Product', 'Description', 'Link'];
-  S.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
+  const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note'];
+  d.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
   rows.push(h);
-  S.products.forEach(pr => {
-    const r = [pr.name, pr.notes, pr.link || ''];
-    S.parameters.forEach(p => {
+  d.products.forEach(pr => {
+    const r = [pr.name, pr.notes, pr.link || '', (pr.avoid || []).map(x => (d.products.find(q => q.id === x) || {}).name).filter(Boolean).join('; '), pr.avoidNote || ''];
+    d.parameters.forEach(p => {
       if (isBool(p)) r.push(pr.flags[p.id] ? BL[pr.flags[p.id]] : '');
       else if (isVar(p)) { const v = pr.ranges[p.id] || [null, null]; r.push(vlabel(p, v[0]) ?? '', vlabel(p, v[1]) ?? ''); }
       else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
@@ -1898,7 +2014,8 @@ function splitBound(h){
 }
 function fromCSV(text){
   const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
-  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, linkIdx = -1, adjusted = 0;
+  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, linkIdx = -1, avIdx = -1, avnIdx = -1, adjusted = 0;
+  const avNames = new Map();
   const unknown = new Set();
   const labId = (p, t) => { t = String(t ?? '').trim().toLowerCase(); const v = varList(p).find(v => v.t.toLowerCase() === t); return t && v ? v.id : null; };
   const findP = name => out.parameters.find(x => x.name.toLowerCase() === name.toLowerCase());
@@ -1945,12 +2062,14 @@ function fromCSV(text){
     }
     else if (section === '[PRODUCTS]') {
       if (!cols) {
-        cols = []; nameIdx = 0; notesIdx = -1; linkIdx = -1;
+        cols = []; nameIdx = 0; notesIdx = -1; linkIdx = -1; avIdx = -1; avnIdx = -1;
         row.forEach((raw, i) => {
           const h = raw.trim(), l = h.toLowerCase();
           if (['product', 'name', 'model'].includes(l)) nameIdx = i;
           else if (['notes', 'note', 'description'].includes(l)) notesIdx = i;
           else if (['link', 'url', 'website'].includes(l)) linkIdx = i;
+          else if (['do not combine', 'do not combine with', 'avoid', 'incompatible with'].includes(l)) avIdx = i;
+          else if (['combination note', 'combination reason', 'do not combine note'].includes(l)) avnIdx = i;
           else { const b = splitBound(h); if (b) {
             let p = findP(b[0]);
             if (!p) {
@@ -1965,7 +2084,8 @@ function fromCSV(text){
       }
       const name = (row[nameIdx] || '').trim();
       if (!name) continue;
-      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', link: linkIdx >= 0 ? normLink(row[linkIdx]) : '', ranges: {}, flags: {}, rel: {}};
+      const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', link: linkIdx >= 0 ? normLink(row[linkIdx]) : '', ranges: {}, flags: {}, rel: {}, avoid: [], avoidNote: avnIdx >= 0 ? (row[avnIdx] || '').trim() : ''};
+      if (avIdx >= 0) avNames.set(pr, String(row[avIdx] || '').split(/[;|]/).map(t => t.trim()).filter(Boolean));
       cols.forEach(([i, p, k]) => {
         const c = row[i];
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
@@ -1976,6 +2096,9 @@ function fromCSV(text){
       out.products.push(pr);
     }
   }
+  const missAv = new Set();
+  avNames.forEach((names, pr) => names.forEach(nm => { const o = out.products.find(q => q.name.toLowerCase() === nm.toLowerCase()); if (o && o !== pr) pr.avoid.push(o.id); else if (!o) missAv.add(nm); }));
+  if (missAv.size) notes.push(`Do-not-combine names not found among the products were ignored: ${[...missAv].slice(0, 5).join(', ')}${missAv.size > 5 ? '…' : ''}`);
   if (unknown.size) notes.push(`Values not in the parameter's list were left blank: ${[...unknown].slice(0, 5).join(', ')}${unknown.size > 5 ? '…' : ''}`);
   if (adjusted) notes.push(`${adjusted} product value(s) were adjusted to match their parameter's resolution and range.`);
   if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description).');
@@ -1985,17 +2108,54 @@ $('#fileIn').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   try {
-    const {data, notes} = fromCSV(await f.text());
-    if ((S.parameters.length || S.products.length) &&
-        !(await askConfirm({title: 'Replace current settings?', ok: 'Import', danger: true, msg: `Current settings will be replaced with ${data.parameters.length} parameters and ${data.products.length} products from ${f.name}.`}))) return;
-    S.title = data.title || S.title; S.parameters = data.parameters; S.products = data.products; S.inputs = {}; S.selectedId = null;
-    fix(S); save(); openSettings('data');
-    askConfirm({title: 'Import complete', cancel: false, msg: `Imported ${data.parameters.length} parameters and ${data.products.length} products.` + (notes.length ? '\n\n' + notes.join('\n') : '')});
+    const text = await f.text(), group = splitProfiles(text);
+    if (group) {   // file with several profiles: each becomes a new profile
+      const parsed = group.map(g => ({name: g.name, ...fromCSV(g.text)}));
+      if (!(await askConfirm({title: `Import ${parsed.length} profiles?`, ok: 'Import', msg: `Each profile in ${f.name} is added as a new profile (${parsed.map(x => x.name).join(', ')}). Existing profiles are not changed; duplicate names are numbered.`}))) return;
+      save();
+      parsed.forEach(x => addProfile(x.name, Object.assign(blank(), {title: x.data.title || x.name, parameters: x.data.parameters, products: x.data.products})));
+      const nts = parsed.filter(x => x.notes.length).map(x => `${x.name}: ${x.notes.join(' ')}`);
+      renderSettings();
+      askConfirm({title: 'Import complete', cancel: false, msg: `Added ${parsed.length} profiles. Select one under Active profile.` + (nts.length ? '\n\n' + nts.join('\n') : '')});
+      return;
+    }
+    const {data, notes} = fromCSV(text);
+    const base = data.title || f.name.replace(/\.csv$/i, '').replace(/^ProductMatch-(Settings-)?/i, '');
+    const empty = !S.parameters.length && !S.products.length;
+    const how = empty ? 'alt' : await askConfirm({title: 'Import CSV', ok: 'New profile', alt: 'Replace current', danger: false,
+      msg: `${f.name}: ${data.parameters.length} parameters and ${data.products.length} products.\n\nAdd it as a new profile, or replace the data in "${profName()}"?`});
+    if (!how) return;
+    if (how === 'alt') {
+      if (!empty && !(await askConfirm({title: `Replace "${profName()}"?`, ok: 'Replace', danger: true, msg: 'The parameters, products and inputs in this profile will be replaced. Other profiles are not changed.'}))) return;
+      S.title = data.title || S.title; S.parameters = data.parameters; S.products = data.products; S.inputs = {}; S.selectedId = null; S.entered = [];
+      fix(S); save(); openSettings('data');
+    } else {
+      const nm = await askConfirm({title: 'New profile name', ok: 'Import', input: uniqueProfName(base)});
+      if (!nm) return;
+      save();
+      const id = addProfile(nm, Object.assign(blank(), {title: data.title || nm, parameters: data.parameters, products: data.products}));
+      if (id) switchProfile(id);
+    }
+    askConfirm({title: 'Import complete', cancel: false, msg: `Imported ${data.parameters.length} parameters and ${data.products.length} products into "${profName()}".` + (notes.length ? '\n\n' + notes.join('\n') : '')});
   } catch (err) { askConfirm({title: 'Import failed', cancel: false, msg: err.message}); }
 };
-async function exportCSV(){
-  const name = `ProductMatch-Settings-${localDate()}.csv`;
-  const file = new File(['﻿' + toCSV()], name, {type: 'text/csv'});
+// A group file holds several profiles, each starting with a "[PROFILE],<name>" row.
+function splitProfiles(text){
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  if (!lines.some(l => /^"?\[PROFILE\]"?\s*(,|$)/i.test(l))) return null;
+  const out = []; let cur = null;
+  for (const l of lines) {
+    if (/^"?\[PROFILE\]"?\s*(,|$)/i.test(l)) { const r = parseRows(l)[0] || []; cur = {name: (r[1] || '').trim() || 'Profile ' + (out.length + 1), text: ''}; out.push(cur); }
+    else if (cur) cur.text += l + '\r\n';
+  }
+  return out.length ? out : null;
+}
+const fileSafe = t => String(t || 'Profile').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'Profile';
+async function exportCSV(all){
+  save();
+  const name = all ? `ProductMatch-AllProfiles-${localDate()}.csv` : `ProductMatch-${fileSafe(profName())}-${localDate()}.csv`;
+  const text = all ? PM.list.map(x => `[PROFILE],${cell(x.name)}\r\n` + toCSV(profData(x.id)) + '\r\n').join('') : toCSV();
+  const file = new File(['﻿' + text], name, {type: 'text/csv'});
   const done = () => { S.lastExport = Date.now(); save(); if (S.tab === 'settings' && S.sec === 'data') renderSettings(); };
   if (navigator.canShare && navigator.canShare({files: [file]})) {
     try { await navigator.share({files: [file], title: name}); done(); return; }

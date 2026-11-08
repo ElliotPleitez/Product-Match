@@ -99,3 +99,14 @@ See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`,
 - Products: Product, Description, Link, then numeric parameters use `<Name> Lower` and `<Name> Upper`; Text and Number (Variable) parameters use the listed value in Lower / Upper; Y/N parameters use `<Name> Value` (Yes, No or Either); every parameter has `<Name> Weight` (0 = not relevant, blank = parameter default).
 - Older files without the newer columns still import.
 - In Excel, save as **CSV UTF-8**.
+
+## Profiles
+
+Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. Each profile is an independent data set (title, parameters, products, do-not-combine pairs, inputs and view settings); switching or changing one does not affect the others. **+ New**, **Rename**, **Duplicate** and **Delete** manage them. Data saved by earlier versions becomes the first profile.
+
+- **Import CSV:** a single-profile file can be added as a new profile or replace the current profile's data. A file exported with **Export all profiles** adds each profile it contains as a new profile (duplicate names are numbered).
+- **Export profile:** the current profile only. **Export all profiles:** one file; each profile starts with a `[PROFILE],<name>` row followed by its usual `[SETTINGS]`, `[PARAMETERS]` and `[PRODUCTS]` sections.
+
+## Do-not-combine products
+
+In the product editor, **⚠ Do not combine with** lists the other products; tap one to mark that the two should not be used together (applies to both products), and add the reason. On Match, the Result shows a red warning listing those products with the reason; in All Products, rows that conflict with the selected or best product are outlined in red and tagged, and any product with pairs shows ⚠ and the count. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
