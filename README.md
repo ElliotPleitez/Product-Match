@@ -26,7 +26,7 @@ Public repository note: the app **code** is publicly viewable. Your parameters, 
 - The app opens on the **Match** screen with your last inputs. Each input card shows the weight (top right), a slider, the current value, the allowable range and default, the units, and **⋯** to type a value (the box opens empty; leaving it empty keeps the current value). Y/N parameters use Yes / No radio buttons (tap again to clear). **Reset to defaults** sets every input to its parameter default.
 - **Settings** (top right) holds **Parameters**, **Products** and **Data**. One section is open at a time; tap a heading to open or close it. **Done** returns to Match.
 - Chip rows on product cards scroll together, so each parameter stays in one column; parameter card chips wrap. ▲ ▼ and Duplicate / Delete are aligned to the top of each card.
-- Tapping a card's title, description or a chip opens the editor at that field, brought into view with a brief highlight and shake that fades out.
+- Tapping a card's title, description or a chip opens the editor at that field, brought into view with a brief highlight that fades out.
 - **Description detail** (button beside the heading, cycles **Normal** – full text, **Advanced** – two lines, **Expert** – hidden). Parameters share one setting between Match ▸ Input Parameters and Settings ▸ Parameters; Products share one between Match ▸ All Products and Settings ▸ Products; Result has its own.
 
 All changes, inputs and weights are saved automatically on the device.
@@ -45,7 +45,7 @@ Listed values (Text and Number Variable): the Match slider follows the list orde
 
 **Flagged fields:** whenever a value is changed by the app (rounding, resolution change, product value adjusted to the parameter) or needs acknowledgement, the field shakes, stays highlighted and shows a floating comment. Selecting the comment accepts the value shown; selecting the field lets it be reviewed, and it is checked again when left (flagged again if required). If highlighted fields remain when **Save** is selected, a confirmation asks to accept the values shown, clear the prompts and save. A slider step that does not divide the allowable range evenly is flagged once; the accepted combination is remembered.
 
-Resolution and slider step sit on one line. Step, allowable range and default are formatted to the resolution when entered. Changing the resolution re-formats them from the values as typed; any value the new resolution changes is flagged for review. Fields that cannot be edited are grayed. New listed values slide in without opening the keyboard; deleted values, parameters and products slide out. Deleting a parameter or product asks for confirmation first. Default values offer **Blank** for no default.
+Resolution and slider step sit on one line. Step, allowable range and default are formatted to the resolution when entered. Changing the resolution re-formats them from the values as typed; any value the new resolution changes is flagged for review. Fields that cannot be edited are grayed. **+ Add value** and the numbering button (Ascending / Descending) sit above the listed values. New listed values slide in without opening the keyboard; deleted values, parameters and products slide out. Deleting a parameter or product, changing a parameter type, CSV import, loading sample data and erasing data use in-app confirmation prompts. Default values offer **Blank** for no default.
 
 ## Match screen
 
@@ -56,7 +56,7 @@ Resolution and slider step sit on one line. Step, allowable range and default ar
 - Opening the app with entered values: Input Parameters is collapsed and Result and All Products share the screen as two scrolling halves. With no entered values (and after **Reset to defaults**) only Input Parameters is open, with every tile shown. Y/N options use Yes / No buttons; the selected one is filled.
 - Only parameters entered or changed on the Match screen are scored. **Reset to defaults** places the default values (shown faded) and clears the entered set; Result stays collapsed until a parameter is entered, then expands (the screen does not move) and refreshes with each change.
 - Input Parameters shows every tile when it is the only section open (including after Reset); with Result or All Products also open, it is a sliding pane of two tiles.
-- Opening **All Products** moves to the top of the screen and shows the products in their own scrolling panel; with Input Parameters open, Result collapses, otherwise Result and All Products share the screen. Selecting a product collapses Input Parameters and shows Result and All Products together; the selected product stays in view. Entering or changing a parameter keeps the layout as it is.
+- Opening **All Products** moves to the top of the screen and shows the products in their own scrolling panel; with Input Parameters open, Result collapses, otherwise Result and All Products share the screen. Collapsing All Products leaves Result as it is. Selecting a product collapses Input Parameters and shows Result and All Products together; the selected product stays in view. Entering or changing a parameter keeps the layout as it is.
 
 **Manual entry rounding** (per parameter, not used for listed values): Nearest, Round up or Round down. Applied when a value is typed on the Match screen.
 

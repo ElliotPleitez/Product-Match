@@ -286,6 +286,8 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
 /* brief highlight that fades out */
 @keyframes hlfade{0%,55%{box-shadow:0 0 0 2px var(--flag);background-color:color-mix(in srgb,var(--flag) 13%,var(--card))}}
 .hl{animation:shake .45s ease,hlfade 2.6s ease}
+.hlq{animation:hlfade 2.6s ease}
+.dlg-card p{white-space:pre-line}
 @keyframes notefade{0%{opacity:0}8%,78%{opacity:1}100%{opacity:0}}
 .fbub.note{pointer-events:none;animation:notefade 3.3s ease forwards}
 /* in-app confirmation */
@@ -859,10 +861,11 @@ function animateOut(el, done){
   a.onfinish = done;
 }
 // In-app confirmation (same style for every delete and for saving with open prompts). Resolves true/false.
-function askConfirm({title, msg, ok = 'OK', danger = false}){
+function askConfirm({title, msg, ok = 'OK', danger = false, cancel = true}){
   return new Promise(res => {
     const d = $('#dlg');
     $('#dlgT').textContent = title; $('#dlgM').textContent = msg;
+    $('#dlgNo').style.display = cancel ? '' : 'none';
     const b = $('#dlgOk'); b.textContent = ok; b.className = 'btn ' + (danger ? 'dangerfill' : 'primary');
     d.classList.remove('hidden');
     const end = v => { d.classList.add('hidden'); $('#dlgOk').onclick = $('#dlgNo').onclick = d.onclick = null; res(v); };
@@ -874,8 +877,9 @@ function askConfirm({title, msg, ok = 'OK', danger = false}){
 function note(el, text, o = {}){
   if (!el || !el.isConnected) return;
   const target = o.target || el;
-  target.classList.remove('hl'); void target.offsetWidth; target.classList.add('hl');
-  clearTimeout(target._hl); target._hl = setTimeout(() => target.classList.remove('hl'), 2700);
+  const cls = o.quiet ? 'hlq' : 'hl';   // quiet: highlight and fade only, no shake
+  target.classList.remove('hl', 'hlq'); void target.offsetWidth; target.classList.add(cls);
+  clearTimeout(target._hl); target._hl = setTimeout(() => target.classList.remove(cls), 2700);
   if (!text) return;
   const host = o.host || target.closest('.inp, .pfield, .vrow, .field') || target.parentElement;
   host.classList.add('fhost', 'fhosting');
@@ -1125,7 +1129,7 @@ function matchSectionToggled(key, open){
       if (!S.collapsed['m-inputs']) setSection('m-result', false);   // inputs pane + product panel
       else if (entered) setSection('m-result', true);              // Result and All Products split
       window.scrollTo({top: 0, behavior: reduceMotion() ? 'auto' : 'smooth'});
-    } else if (entered) setSection('m-result', true);
+    }   // collapsing All Products leaves Result as it is
   }
   if (!open && key !== 'm-inputs' && !S.collapsed['m-inputs'] && !others()) S.inputsFull = true;
   save(); setTimeout(layoutMatch, 260);
@@ -1301,7 +1305,7 @@ function focusField(sel){
     if (!el || !el.getClientRects().length) return;
     const d = el.closest('details'); if (d) d.open = true;
     el.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'});
-    setTimeout(() => note(el), reduceMotion() ? 0 : 380);
+    setTimeout(() => note(el, null, {quiet: true}), reduceMotion() ? 0 : 380);
   }, reduceMotion() ? 0 : 300);
 }
 function editParam(id, field){
@@ -1330,8 +1334,8 @@ function editParam(id, field){
         <span id="stepBox"><span class="small">Slider step</span><input id="fStep" type="number" min="0" inputmode="decimal" value="${p.type === 'percent' || p.type === 'number' ? plain(p.step) : ''}" placeholder="Step"></span></div>
       <div class="xsmall muted" style="margin:5px 2px" id="precNote"></div></div>
     <div class="field" id="valsWrap"><label>Values (<span id="valCount">0</span>)</label>
+      <div class="pair" style="margin-bottom:8px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="dirBtn" style="flex:1"></button></div>
       <div id="valList"></div>
-      <div class="pair" style="margin-top:6px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="dirBtn" style="flex:1"></button></div>
       <label class="switch" id="byValWrap"><input type="checkbox" id="fByVal" ${p.byValue ? 'checked' : ''}><span class="sw"></span><span>Score by numeric size (off = by list position)</span></label>
       <div class="xsmall muted" style="margin:5px 2px" id="valsNote"></div></div>
     <div class="field" id="rangeWrap"><label id="rangeLabel">Allowable range (optional)</label>
@@ -1356,7 +1360,7 @@ function editParam(id, field){
     ${enableList}
     <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Basis, test standard, or notes">${esc(p.details)}</textarea></div>
     <div id="fErr" class="small err-text"></div>`,
-    () => {
+    async () => {
       const type = $('#fType').value, t = TYPES[type];
       const name = $('#fName').value.trim();
       const res = type === 'number' ? ($('#fPrec').value === 'var' ? 'var' : Number($('#fPrec').value)) : type === 'percent' ? Number($('#fPrec').value) : null;
@@ -1390,7 +1394,7 @@ function editParam(id, field){
         : conformValue({type, res, min, max}, num($('#fDef').value));
       // Changing between Y/N, Text and numeric types clears this parameter's product values and input.
       if (id && kindOf(p.type, p.res) !== kindOf(type, res)) {
-        if (!confirm('Changing between Number / %, Text and Y/N clears this parameter\'s product values and current input. Continue?')) return 'Type change cancelled.';
+        if (!(await askConfirm({title: 'Change parameter type?', ok: 'Change type', danger: true, msg: 'Changing between Number / %, Text and Y/N clears this parameter\'s product values and current input.'}))) return 'Type change cancelled.';
         S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; });
         delete S.inputs[p.id];
       }
@@ -1438,7 +1442,8 @@ function editParam(id, field){
             <div class="acts"><button type="button" data-va="dup" data-i="${i}">Duplicate</button><button type="button" class="danger" data-va="del" data-i="${i}">Delete</button></div>
           </div>`).join('') : '<div class="card muted small" style="margin:0">No values yet. Select + Add value.</div>';
         $('#valCount').textContent = n;
-        $('#dirBtn').textContent = dir === 'desc' ? 'Numbering: descending ⇅' : 'Numbering: ascending ⇅';
+        $('#dirBtn').textContent = dir === 'desc' ? 'Descending ⇅' : 'Ascending ⇅';
+        $('#dirBtn').setAttribute('aria-label', 'Numbering: ' + (dir === 'desc' ? 'descending' : 'ascending'));
         refreshListUI();
       };
       const refreshListUI = () => {
@@ -1807,17 +1812,17 @@ function renderData(box){
       <p class="xsmall muted" style="margin-bottom:0">Data is stored only on this device, inside this Home Screen app. Removing the app from the Home Screen erases it.</p></div>`;
   $('#titleIn').oninput = e => { S.title = e.target.value; save(); $('#title').textContent = S.title || 'Product Match'; document.title = S.title || 'Product Match'; };
   $('#impBtn').onclick = () => $('#fileIn').click();
-  if ($('#fixBtn')) $('#fixBtn').onclick = () => {
-    if (!confirm('Round product values to each parameter\'s resolution and limit them to its allowable range? Export a CSV first if you want to keep the current values.')) return;
+  if ($('#fixBtn')) $('#fixBtn').onclick = async () => {
+    if (!(await askConfirm({title: 'Apply resolution and range?', ok: 'Apply', msg: 'Product values will be rounded to each parameter\'s resolution and limited to its allowable range. Export a CSV first to keep the current values.'}))) return;
     conformAll(); save(); renderSettings(); toast('Product values updated');
   };
   $('#expBtn').onclick = exportCSV;
-  $('#sampleBtn').onclick = () => {
-    if ((S.parameters.length || S.products.length) && !confirm('Replace current parameters and products with sample data?')) return;
+  $('#sampleBtn').onclick = async () => {
+    if ((S.parameters.length || S.products.length) && !(await askConfirm({title: 'Load sample data?', ok: 'Replace', danger: true, msg: 'Current parameters and products will be replaced with sample data. Export a CSV first if a backup is needed.'}))) return;
     S = sample(); save(); openSettings('data'); toast('Sample data loaded');
   };
-  $('#resetBtn').onclick = () => {
-    if (!confirm('Erase all parameters, products and inputs from this device? Export a CSV first if a backup is needed.')) return;
+  $('#resetBtn').onclick = async () => {
+    if (!(await askConfirm({title: 'Erase all data?', ok: 'Erase', danger: true, msg: 'All parameters, products and inputs will be erased from this device. This cannot be undone; export a CSV first if a backup is needed.'}))) return;
     S = blank(); save(); openSettings('params');
   };
 }
@@ -1982,11 +1987,11 @@ $('#fileIn').onchange = async e => {
   try {
     const {data, notes} = fromCSV(await f.text());
     if ((S.parameters.length || S.products.length) &&
-        !confirm(`Replace current settings with ${data.parameters.length} parameters and ${data.products.length} products from ${f.name}?`)) return;
+        !(await askConfirm({title: 'Replace current settings?', ok: 'Import', danger: true, msg: `Current settings will be replaced with ${data.parameters.length} parameters and ${data.products.length} products from ${f.name}.`}))) return;
     S.title = data.title || S.title; S.parameters = data.parameters; S.products = data.products; S.inputs = {}; S.selectedId = null;
     fix(S); save(); openSettings('data');
-    alert(`Imported ${data.parameters.length} parameters and ${data.products.length} products.` + (notes.length ? '\n\n' + notes.join('\n') : ''));
-  } catch (err) { alert('Import failed: ' + err.message); }
+    askConfirm({title: 'Import complete', cancel: false, msg: `Imported ${data.parameters.length} parameters and ${data.products.length} products.` + (notes.length ? '\n\n' + notes.join('\n') : '')});
+  } catch (err) { askConfirm({title: 'Import failed', cancel: false, msg: err.message}); }
 };
 async function exportCSV(){
   const name = `ProductMatch-Settings-${localDate()}.csv`;
@@ -2021,7 +2026,7 @@ $('#sheetSave').onclick = async () => {
     if (!ok) return;
     acceptAll($('#sheetBody'));
   }
-  const err = sheetSave && sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet();
+  const err = sheetSave && await sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet();
 };
 
 /* ======================= SAMPLE DATA ======================= */
