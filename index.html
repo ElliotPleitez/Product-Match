@@ -309,6 +309,15 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
 .xico{color:var(--bad);font-weight:700;font-size:12px;margin-left:6px;white-space:nowrap}
 .alts button.xalt{border-color:var(--bad);color:var(--bad)}
 .chip.xc{border-color:var(--bad)}.chip.xc b{color:var(--bad)}
+.card.item.unsuit{opacity:.62;background:repeating-linear-gradient(135deg,var(--card) 0 10px,var(--soft) 10px 20px)}
+.card.item.unsuit.sel{opacity:1}
+.ntag{display:inline-block;margin-top:4px;font-size:11.5px;font-weight:700;color:var(--ink);background:var(--soft);border:1px dashed var(--muted);border-radius:6px;padding:2px 7px}
+.xwarn.nsuit{border-style:dashed}
+.chip.must span{font-weight:700}
+.mustcb{display:flex;align-items:flex-start;gap:6px;margin:8px 2px 0;font-size:12.5px;line-height:1.35;cursor:pointer}
+.pfield label.mustcb,.mustcb{display:flex;align-items:flex-start;gap:8px;width:auto}
+.mustcb input[type=checkbox]{width:20px;height:20px;min-height:0;margin:0;padding:0;flex:none;accent-color:var(--accent)}
+.mustcb>span{flex:1;min-width:0;text-align:left}
 .dlg-card input{width:100%}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pgrid .btn{white-space:nowrap}
 .btn.dangerfill{background:var(--bad);border-color:var(--bad);color:#fff}
@@ -435,7 +444,7 @@ function fix(s){
     if (p.dir !== 'desc') p.dir = 'asc';
     p.vals = Array.isArray(p.vals) ? p.vals : [];
   });
-  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; if (pr.link == null) pr.link = ''; });
+  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; pr.must = pr.must || {}; if (pr.link == null) pr.link = ''; });
   // Do-not-combine pairs: kept symmetric, limited to existing products.
   const ids = new Set(s.products.map(pr => pr.id));
   s.products.forEach(pr => { pr.avoid = [...new Set((Array.isArray(pr.avoid) ? pr.avoid : []).filter(x => ids.has(x) && x !== pr.id))]; if (pr.avoidNote == null) pr.avoidNote = ''; });
@@ -678,7 +687,7 @@ function rank(){
   const act = S.parameters.filter(p => inVal(p) != null && (S.entered || []).includes(p.id));
   const spans = {}; act.forEach(p => { if (!isBool(p)) spans[p.id] = refSpan(p); });
   const res = S.products.map(pr => {
-    let ws = 0, ss = 0, within = 0, n = 0; const fits = {};
+    let ws = 0, ss = 0, within = 0, n = 0; const fits = {}, fails = [];
     act.forEach(p => {
       const v = inVal(p), w = wOf(pr, p);
       let s = 0, st = 'missing', d = null, r = null;
@@ -693,11 +702,13 @@ function rank(){
         }
       }
       if (w > 0) { ws += w; ss += w * s; n++; if (st === 'within') within++; }
-      fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0)};
+      const must = !!(pr.must && pr.must[p.id]) && w > 0;
+      if (must && st !== 'within') fails.push(p.name);   // must-match parameter not met: product not suitable
+      fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0), must};
     });
-    return {pr, score: ws ? ss / ws : 0, pts: ss / 100, tot: ws, within, n, fits};
+    return {pr, score: ws ? ss / ws : 0, pts: ss / 100, tot: ws, within, n, fits, fails, unsuit: fails.length > 0};
   });
-  res.sort((a, b) => b.score - a.score || b.n - a.n || b.within - a.within || S.products.indexOf(a.pr) - S.products.indexOf(b.pr));
+  res.sort((a, b) => (a.unsuit - b.unsuit) || b.score - a.score || b.n - a.n || b.within - a.within || S.products.indexOf(a.pr) - S.products.indexOf(b.pr));
   return {res, act};
 }
 
@@ -1023,7 +1034,7 @@ function renderMatch(){
     section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`, null, 'params') +
     section('m-result', 'Result', '', '<div id="result"></div>', null, 'result') +
     section('m-list', 'All Products', '', `<div id="list"></div>
-      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span><span style="--c:var(--bad)">⚠ Do not combine with the selected product</span></div>`, 'listTitle', 'products');
+      <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span><span style="--c:var(--bad)">⚠ Do not combine with the selected product</span><span style="--c:var(--gray)">✕ Not suitable (◆ must-match not met)</span></div>`, 'listTitle', 'products');
   // Value above the slider: shown as text; tapping it turns it into an entry field.
   // The entry is accepted when the field loses focus, using the parameter's rounding.
   view.querySelectorAll('input[data-in]').forEach(el => {
@@ -1239,7 +1250,7 @@ function updateMatch(){
     const C = 2 * Math.PI * 64, col = shown.score >= 95 ? 'var(--good)' : shown.score >= 60 ? 'var(--warn)' : 'var(--bad)';
     const fits = act.map(p => fitRow(p, shown.fits[p.id])).join('');
     const notRel = act.length - shown.n;
-    const alts = res.filter(r => r !== shown).slice(0, 3).map(r => `<button data-pick="${r.pr.id}" class="${conflicts(shown.pr, r.pr) ? 'xalt' : ''}">${conflicts(shown.pr, r.pr) ? '⚠ ' : ''}${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
+    const alts = res.filter(r => r !== shown && !r.unsuit).slice(0, 3).map(r => `<button data-pick="${r.pr.id}" class="${conflicts(shown.pr, r.pr) ? 'xalt' : ''}">${conflicts(shown.pr, r.pr) ? '⚠ ' : ''}${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
     box.innerHTML = `<div class="card">
       <div class="result-top">
         <div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="64" fill="none" stroke="var(--soft)" stroke-width="13"/>
@@ -1248,6 +1259,7 @@ function updateMatch(){
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
           <div class="pname">${esc(shown.pr.name)}</div>
           ${shown.pr.notes ? `<div class="muted small dtext d-result">${esc(shown.pr.notes)}</div>` : ''}
+          ${shown.unsuit ? `<div class="xwarn nsuit">✕ Not suitable – must-match not met: ${esc(shown.fails.join(', '))}${isBest ? '<span class="xn">No product meets every must-match parameter for these inputs.</span>' : ''}</div>` : ''}
           ${avoidOf(shown.pr).length ? `<div class="xwarn">⚠ Do not combine with: ${esc(avoidOf(shown.pr).map(o => o.name).join(', '))}${shown.pr.avoidNote ? `<span class="xn">${esc(shown.pr.avoidNote)}</span>` : ''}</div>` : ''}
           <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div>
           ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
@@ -1268,13 +1280,15 @@ function updateMatch(){
       if (!rel) val = 'N/A';
       else if (isBool(p)) val = r.pr.flags[p.id] ? BL[r.pr.flags[p.id]] : '—';
       else val = esc(rangeText(r.pr, p));
-      return `<div class="chip ${!rel ? 'na' : f ? f.st : ''}"><span class="muted">${esc(p.name)}</span><b>${val}</b></div>`;
+      const mm = rel && r.pr.must && r.pr.must[p.id];
+      return `<div class="chip ${!rel ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''}"><span class="muted">${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${val}</b></div>`;
     }).join('');
     const xc = scored && shown && conflicts(shown.pr, r.pr), na = avoidOf(r.pr).length;
-    return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''}" data-row="${r.pr.id}">
+    return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''} ${scored && r.unsuit ? 'unsuit' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
         <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${na ? `<span class="xico" title="Has do-not-combine products">⚠ ${na}</span>` : ''}
           ${xc ? `<div><span class="xtag">⚠ Do not combine with ${esc(shown.pr.name)}</span></div>` : ''}
+          ${scored && r.unsuit ? `<div><span class="ntag">✕ Not suitable: ${esc(r.fails.join(', '))}</span></div>` : ''}
           ${r.pr.notes ? `<div class="xsmall muted dtext d-products">${esc(r.pr.notes)}</div>` : ''}</div>
         ${scored ? `<div class="scol"><div class="srow"><div class="sbar"><i style="width:${r.score}%;background:${sc}"></i></div><div class="pct">${Math.round(r.score)}%</div></div><div class="sctx">(score: ${fmt(r.pts)} of ${fmt(r.tot)})</div></div>` : ''}</div>
       <div class="chips sync">${chips}</div></div>`;
@@ -1689,7 +1703,7 @@ function renderProducts(box, act){
       const chips = S.parameters.map(p => {
         const rel = relOf(pr, p), on = rel.on && rel.w > 0;
         const val = on ? esc(rangeText(pr, p)) : 'N/A';
-        return chip(esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na', 'pf:' + p.id);
+        return chip((on && pr.must && pr.must[p.id] ? '◆ ' : '') + esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na', 'pf:' + p.id);
       }).join('') + (avoidOf(pr).length ? chip('⚠ Do not combine', esc(avoidOf(pr).map(o => o.name).join(', ')), 'xc', 'avoid') : '');
       return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '', 'products');
     }).join('')
@@ -1762,7 +1776,8 @@ function editProduct(id, field){
         <button type="button" class="ptoggle" data-ptog="${p.id}"><span class="caret">▾</span><span class="pname2"><b>${esc(p.name)}</b>${p.unit ? ` <span class="muted small">(${esc(p.unit)})</span>` : ''}</span></button>
         <span class="wbox">Weight <input type="number" min="0" max="10" step="1" inputmode="numeric" data-pw="${p.id}" value="${plain(rel.w)}"></span></div>
       <div class="psum xsmall muted" data-psum="${p.id}"></div>
-      <div class="pbody">${body}<div class="xsmall" data-pwarn="${p.id}" style="margin:5px 2px 0"></div></div>
+      <div class="pbody">${body}<div class="xsmall" data-pwarn="${p.id}" style="margin:5px 2px 0"></div>
+        <label class="mustcb"><input type="checkbox" data-must="${p.id}" ${pr.must && pr.must[p.id] ? 'checked' : ''}><span><b>◆ Must match</b> <span class="muted">– an input outside these values marks the product Not suitable</span></span></label></div>
       <div class="offnote xsmall muted">Not relevant to this product (weight 0).</div>
     </div>`;
   }).join('');
@@ -1783,8 +1798,9 @@ function editProduct(id, field){
     () => {
       const name = $('#fName').value.trim();
       if (!name) return 'Enter a product name.';
-      const ranges = {}, flags = {}, rel = {};
+      const ranges = {}, flags = {}, rel = {}, must = {};
       for (const p of S.parameters) {
+        if (document.querySelector(`[data-must="${p.id}"]`).checked) must[p.id] = true;
         const on = document.querySelector(`[data-rel="${p.id}"]`).checked;
         const w = num(document.querySelector(`[data-pw="${p.id}"]`).value);
         if (on && (w == null || w < 0 || w > 10)) return `Enter a weight from 0 to 10 for ${p.name}.`;
@@ -1797,7 +1813,7 @@ function editProduct(id, field){
         }
       }
       const avoid = [...document.querySelectorAll('#avList .xchip.on')].map(b => b.dataset.av);
-      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, avoid, avoidNote: $('#fAvNote').value.trim()});
+      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, must, avoid, avoidNote: $('#fAvNote').value.trim()});
       if (!id) S.products.push(pr);
       S.products.forEach(o => { if (o === pr) return; const has = (o.avoid || []).includes(pr.id), want = avoid.includes(o.id);
         if (want && !has) (o.avoid = o.avoid || []).push(pr.id); if (!want && has) o.avoid = o.avoid.filter(x => x !== pr.id); });
@@ -1979,7 +1995,8 @@ function toCSV(d = S){
     p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details]));
   rows.push([], ['[PRODUCTS]']);
   const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note'];
-  d.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); });
+  const mustCol = p => d.products.some(pr => pr.must && pr.must[p.id]);
+  d.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); if (mustCol(p)) h.push(p.name + ' Must Match'); });
   rows.push(h);
   d.products.forEach(pr => {
     const r = [pr.name, pr.notes, pr.link || '', (pr.avoid || []).map(x => (d.products.find(q => q.id === x) || {}).name).filter(Boolean).join('; '), pr.avoidNote || ''];
@@ -1988,6 +2005,7 @@ function toCSV(d = S){
       else if (isVar(p)) { const v = pr.ranges[p.id] || [null, null]; r.push(vlabel(p, v[0]) ?? '', vlabel(p, v[1]) ?? ''); }
       else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
       r.push(plain(wOf(pr, p)));
+      if (mustCol(p)) r.push(pr.must && pr.must[p.id] ? 'Yes' : '');
     });
     rows.push(r);
   });
@@ -2007,7 +2025,7 @@ function parseRows(t){
   return rows;
 }
 function splitBound(h){
-  const sfx = [[' minimum', 0], [' maximum', 1], [' weight', 'w'], [' lower', 0], [' upper', 1], [' value', 'v'], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
+  const sfx = [[' must match', 'm'], [' must', 'm'], [' minimum', 0], [' maximum', 1], [' weight', 'w'], [' lower', 0], [' upper', 1], [' value', 'v'], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
   const l = h.toLowerCase();
   for (const [s, k] of sfx) if (l.endsWith(s)) { const b = h.slice(0, -s.length).trim(); if (b) return [b, k]; }
   return null;
@@ -2073,7 +2091,8 @@ function fromCSV(text){
           else { const b = splitBound(h); if (b) {
             let p = findP(b[0]);
             if (!p) {
-              p = {id: uid('p'), name: b[0], type: b[1] === 'v' ? 'boolean' : 'number', unit: '', min: null, max: null, res: 1, vals: [], round: 'nearest', weight: 5, details: ''};
+              if (b[1] === 'm') return;
+            p = {id: uid('p'), name: b[0], type: b[1] === 'v' ? 'boolean' : 'number', unit: '', min: null, max: null, res: 1, vals: [], round: 'nearest', weight: 5, details: ''};
               out.parameters.push(p);
               notes.push(`Parameter "${b[0]}" was found only in the product columns and was added with default settings.`);
             }
@@ -2090,6 +2109,7 @@ function fromCSV(text){
         const c = row[i];
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
         else if (k === 'v') { if (isBool(p)) { const b = parseBool(c); if (b) pr.flags[p.id] = b; } }
+        else if (k === 'm') { if (parseBool(c) === 'yes') (pr.must = pr.must || {})[p.id] = true; }
         else if (isVar(p)) { const r = pr.ranges[p.id] || [null, null], t = String(c ?? '').trim(); r[k] = labId(p, t); if (t && r[k] == null) unknown.add(`${p.name}: "${t}"`); pr.ranges[p.id] = r; }
         else if (!isBool(p)) { const r = pr.ranges[p.id] || [null, null], raw = num(c); r[k] = conformValue(p, raw); if (raw != null && r[k] !== raw) adjusted++; pr.ranges[p.id] = r; }
       });

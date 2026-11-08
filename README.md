@@ -110,3 +110,7 @@ Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. 
 ## Do-not-combine products
 
 In the product editor, **⚠ Do not combine with** lists the other products; tap one to mark that the two should not be used together (applies to both products), and add the reason. On Match, the Result shows a red warning listing those products with the reason; in All Products, rows that conflict with the selected or best product are outlined in red and tagged, and any product with pairs shows ⚠ and the count. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
+
+## Must match
+
+In the product editor, each relevant parameter has **◆ Must match**. When that parameter has an input outside the product's values, the product is marked **✕ Not suitable**: it is listed after all suitable products (striped, with the parameter named), it is never shown as the best match while a suitable product exists, and it is left out of the alternatives. Its score is still shown for reference. CSV product column: `<Parameter> Must Match` (Yes / blank); the column is written only for parameters that use it.
