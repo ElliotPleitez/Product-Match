@@ -58,6 +58,13 @@ select{font:inherit;color:var(--ink);background:var(--soft);border:1px solid var
 .htext{flex:1;min-width:0}
 .gear{flex:none;min-width:44px;height:44px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font:inherit;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .gear svg{width:24px;height:24px}
+.hwrap{gap:10px}
+.hreset{margin-left:auto}
+.gear{position:relative}
+.gear .devb{position:absolute;right:-6px;bottom:-6px;font:700 10px/1 ui-monospace,Menlo,monospace;background:#f59e0b;color:#111;border-radius:6px;padding:3px 4px;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.gear.wiggle{animation:shake .5s ease 2}
+.gear,body.dev #view{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.chip.hlq,.fit.hlq{border-radius:10px}
 /* compact Match cards */
 .grid{gap:8px}
 .inp{padding:10px 12px}
@@ -283,12 +290,32 @@ nav.tabs button.on{color:var(--accent)}
 .sec-body.vpane{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border-radius:14px;padding:2px 2px 8px}
 section.collapsed .sec-body.vpane{display:none}
 section.collapsed .splitbar{display:none!important}
-.splitbar{position:relative;height:22px;margin:4px 0 6px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;-webkit-user-select:none;user-select:none}
+.splitbar{position:relative;height:32px;margin:2px 0 4px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;-webkit-user-select:none;user-select:none}
 .splitbar .grip{width:56px;height:5px;border-radius:3px;background:var(--line)}
 .splitbar.drag .grip{background:var(--accent)}
 .splitbar.locked{cursor:default}.splitbar.locked .grip{opacity:.4}
-.panebtn{color:var(--muted);border-radius:7px}.panebtn.on{color:var(--accent);background:var(--soft)}
-.sec-h .panebtn{margin-left:6px}
+.panebtn{flex:none;width:32px;height:32px;padding:0;margin-left:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.panebtn svg{width:24px;height:24px}
+.panebtn .pb{fill:none;stroke:var(--muted);stroke-width:1.8}.panebtn .pg{stroke:var(--muted)}
+.panebtn.on .pb{fill:var(--accent);stroke:var(--accent)}.panebtn.on .pg{stroke:#fff}
+/* locks: style 1 green/red, 2 gray/solid, 3 distinct (label) */
+.lockbtn{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:11.5px}
+.lockbtn svg{width:16px;height:16px}
+.lockbtn .lt{display:none}
+body[data-lock="1"] .lockbtn{color:#15803d;border-color:#15803d}
+body[data-lock="1"] .lockbtn svg{fill:none;stroke:currentColor;stroke-width:2}
+body[data-lock="1"] .locked .lockbtn{color:#fff;background:#dc2626;border-color:#dc2626}
+body[data-lock="1"] .locked .lockbtn svg{fill:#fff;stroke:#fff}
+body[data-lock="2"] .lockbtn{color:var(--muted);background:var(--card);border-color:var(--line)}
+body[data-lock="2"] .lockbtn svg{fill:none;stroke:currentColor;stroke-width:2}
+body[data-lock="2"] .locked .lockbtn{color:#fff;background:var(--ink);border-color:var(--ink)}
+body[data-lock="2"] .locked .lockbtn svg{fill:#fff;stroke:#fff}
+body[data-lock="3"] .lockbtn{color:var(--accent);background:var(--card);border:1.5px dashed var(--accent);padding:4px 9px}
+body[data-lock="3"] .lockbtn svg{fill:none;stroke:currentColor;stroke-width:2}
+body[data-lock="3"] .lockbtn .lt{display:inline}
+body[data-lock="3"] .locked .lockbtn{color:#fff;background:var(--accent);border:1.5px solid var(--accent)}
+body[data-lock="3"] .locked .lockbtn svg{fill:#fff;stroke:#fff}
+body[data-lock="3"] .splitbar.locked .grip{background:var(--accent);opacity:1;height:3px}
 .lockbtn{position:absolute;right:2px;top:50%;transform:translateY(-50%);border:1px solid var(--line);background:var(--card);border-radius:999px;font-size:12px;line-height:1;padding:4px 8px;cursor:pointer}
 /* info (description) and graduation-cap (reasoning) icons beside titles */
 .ibtn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-left:4px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--accent);cursor:pointer;vertical-align:middle}
@@ -326,6 +353,8 @@ section.collapsed .splitbar{display:none!important}
 .chip.xc{border-color:var(--bad)}.chip.xc b{color:var(--bad)}
 .card.item.unsuit{opacity:.62;background:repeating-linear-gradient(135deg,var(--card) 0 10px,var(--soft) 10px 20px)}
 .card.item.unsuit.sel{opacity:1}
+.card.item.unscored{background:var(--soft);border-color:var(--line)}
+.card.item.unscored b{color:var(--muted)}
 .ntag{display:inline-block;margin-top:4px;font-size:11.5px;font-weight:700;color:var(--ink);background:var(--soft);border:1px dashed var(--muted);border-radius:6px;padding:2px 7px}
 .xwarn.nsuit{border-style:dashed}
 .chip.must span{font-weight:700}
@@ -352,6 +381,7 @@ textarea.grow{overflow:hidden;resize:none;min-height:64px}
 <header class="top">
   <div class="hwrap">
     <div class="htext"><h1 id="title">Product Match</h1><div class="sub" id="subtitle"></div></div>
+    <button id="hreset" class="gear hreset" aria-label="Reset inputs to defaults"></button>
     <button id="gear" class="gear" aria-label="Settings"></button>
   </div>
 </header>
@@ -879,7 +909,9 @@ function updateHeader(){
   const pn = PM.list.length > 1 ? profName() + ' · ' : '';
   $('#subtitle').textContent = S.tab === 'settings' ? pn + 'Settings' : `${pn}${S.parameters.length} parameters · ${S.products.length} products`;
   const g = $('#gear');
-  g.innerHTML = S.tab === 'settings' ? 'Done' : GEAR;
+  g.innerHTML = S.tab === 'settings' ? 'Done' : GEAR + (DEV.on ? '<span class="devb">&lt;/&gt;</span>' : '');
+  $('#hreset').style.display = S.tab === 'settings' ? 'none' : '';
+  $('#hreset').innerHTML = ICON_RESET;
   g.setAttribute('aria-label', S.tab === 'settings' ? 'Close settings' : 'Settings');
 }
 // Views: 'match' (default) and 'settings'. Switching starts at the top with a fade-in.
@@ -928,9 +960,9 @@ function section(key, title, action, body, h2id){
   // Match sections: the body is a scrolling pane; the bar below it adjusts the split (and locks it).
   const m = key.startsWith('m-');
   const bar = m ? `<div class="splitbar" data-split="${key}"><span class="grip" aria-hidden="true"></span><button type="button" class="lockbtn" data-lock aria-label="Lock pane height"></button></div>` : '';
-  const pt = m ? `<button type="button" class="ibtn panebtn" data-pane="${key}" aria-label="Scroll pane">${ICON_PANE}</button>` : '';
+  const pt = m ? `<button type="button" class="panebtn" data-pane="${key}" aria-label="Scroll pane">${ICON_PANE}</button>` : '';
   return `<section class="${c ? 'collapsed' : ''}" data-section="${key}">
-    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2>${pt}<span class="spacer"></span>${action || ''}</div>
+    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2><span class="spacer"></span>${action || ''}${pt}</div>
     <div class="sec-body">${body}</div>${bar}</section>`;
 }
 function slide(sec, closing){
@@ -965,7 +997,112 @@ document.addEventListener('pointerdown', e => {
   const a = document.activeElement;
   if (isEntry(a) && a !== e.target && !isEntry(e.target)) a.blur();
 }, true);
-$('#gear').onclick = () => S.tab === 'settings' ? setTab('match') : openSettings(null);
+/* ---------- Developer mode ----------
+   Hold the settings icon for 2 s to turn it on or off (the icon shakes and shows </>). While on, hold a
+   tile, product row or Result item on Match for 0.5 s to open its settings at that field. On Save the
+   Match screen returns to the same position, and the edited value and any other changed values are
+   highlighted. */
+const DEV = {on: false, skipClick: false, suppress: false, ctx: null, t: 0};
+(() => {
+  const g = $('#gear'); let gt = 0;
+  g.addEventListener('pointerdown', () => {
+    if (S.tab === 'settings') return;
+    clearTimeout(gt);
+    gt = setTimeout(() => {
+      DEV.on = !DEV.on; DEV.skipClick = true; updateHeader();
+      g.classList.remove('wiggle'); void g.offsetWidth; g.classList.add('wiggle');
+      document.body.classList.toggle('dev', DEV.on);
+      toast(DEV.on ? 'Developer mode on – hold a tile for ½ second to edit its settings' : 'Developer mode off');
+    }, 2000);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => g.addEventListener(t, () => clearTimeout(gt)));
+  g.addEventListener('contextmenu', e => e.preventDefault());
+})();
+// What a held element edits: {kind: 'p' | 'r', id, field}.
+function devTarget(el){
+  const tile = el.closest('[data-tile]');
+  if (tile) {
+    const p = P(tile.dataset.tile);
+    const f = el.closest('.ibtn.cap') ? 'reason' : el.closest('.ibtn') ? 'desc' : el.closest('.wt') ? 'weight' : el.closest('.top') ? 'name'
+      : el.closest('.ends, .scale') && !isVar(p) && !isBool(p) ? 'allow' : isVar(p) ? 'values' : 'def';
+    return {kind: 'p', id: p.id, field: f};
+  }
+  const row = el.closest('[data-row]');
+  if (row) {
+    const c = el.closest('[data-pc]');
+    return {kind: 'r', id: row.dataset.row, field: c ? 'pf:' + c.dataset.pc : el.closest('.xbtn') ? 'avoid' : el.closest('.ibtn') ? 'desc' : 'name'};
+  }
+  const res = el.closest('#result');
+  if (res && res.dataset.shown) {
+    const fp = el.closest('[data-fp]');
+    return {kind: 'r', id: res.dataset.shown, field: fp ? 'pf:' + fp.dataset.fp : el.closest('.xbtn') ? 'avoid' : el.closest('.ibtn') ? 'desc' : 'name'};
+  }
+  return null;
+}
+view.addEventListener('pointerdown', e => {
+  if (!DEV.on || S.tab === 'settings' || e.target.closest('input[type=range], .valin, .splitbar, [data-pane], [data-collapse]')) return;
+  const tgt = devTarget(e.target);
+  if (!tgt) return;
+  const x0 = e.clientX, y0 = e.clientY, host = e.target.closest('[data-tile], [data-row], #result .card');
+  const end = () => { clearTimeout(DEV.t); view.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); };
+  const mv = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) end(); };
+  view.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  clearTimeout(DEV.t);
+  DEV.t = setTimeout(() => { end(); DEV.suppress = true; if (host) note(host, null, {quiet: true}); devOpen(tgt); }, 500);
+});
+// The click that ends a long press is swallowed (window capture runs before every other handler).
+window.addEventListener('click', e => { if (DEV.suppress) { DEV.suppress = false; e.stopPropagation(); e.preventDefault(); } }, true);
+view.addEventListener('contextmenu', e => { if (DEV.on) e.preventDefault(); });
+function devOpen(t){
+  DEV.ctx = Object.assign({}, t, {
+    y: window.scrollY,
+    panes: MKEYS.map(k => view.querySelector(`[data-section="${k}"] .sec-body`).scrollTop),
+    params: Object.fromEntries(S.parameters.map(p => [p.id, JSON.stringify(p)])),
+    prods: Object.fromEntries(S.products.map(pr => [pr.id, JSON.stringify(pr)]))});
+  if (t.kind === 'p') editParam(t.id, t.field); else editProduct(t.id, t.field);
+}
+// Back on Match after the editor closes: same position, edited value and other changes highlighted.
+function devReturn(saved){
+  const c = DEV.ctx; DEV.ctx = null;
+  if (S.tab === 'settings') return;
+  renderMatch();
+  window.scrollTo(0, c.y);
+  MKEYS.forEach((k, i) => { const b = view.querySelector(`[data-section="${k}"] .sec-body`); if (b) b.scrollTop = c.panes[i]; });
+  if (!saved) return;
+  const hits = new Set();
+  const pf = c.field && c.field.startsWith('pf:') ? c.field.slice(3) : null;
+  if (c.kind === 'p') hits.add(view.querySelector(`[data-tile="${c.id}"]`));
+  else {
+    hits.add(pf ? view.querySelector(`[data-row="${c.id}"] [data-pc="${pf}"]`) : view.querySelector(`[data-row="${c.id}"]`));
+    if (pf && $('#result').dataset.shown === c.id) hits.add($('#result').querySelector(`[data-fp="${pf}"]`));
+  }
+  S.parameters.forEach(p => { if (c.params[p.id] !== JSON.stringify(p)) hits.add(view.querySelector(`[data-tile="${p.id}"]`)); });
+  const keys = ['ranges', 'flags', 'rel', 'must', 'sets', 'hard'];
+  S.products.forEach(pr => {
+    const old = c.prods[pr.id] ? JSON.parse(c.prods[pr.id]) : null;
+    if (!old) { hits.add(view.querySelector(`[data-row="${pr.id}"]`)); return; }
+    let any = false;
+    S.parameters.forEach(p => {
+      if (keys.some(k => JSON.stringify((old[k] || {})[p.id]) !== JSON.stringify((pr[k] || {})[p.id]))) {
+        any = true; hits.add(view.querySelector(`[data-row="${pr.id}"] [data-pc="${p.id}"]`));
+        if ($('#result').dataset.shown === pr.id) hits.add($('#result').querySelector(`[data-fp="${p.id}"]`));
+      }
+    });
+    if (!any && JSON.stringify(old) !== JSON.stringify(pr)) hits.add(view.querySelector(`[data-row="${pr.id}"]`));
+  });
+  hits.forEach(el => el && note(el, null, {quiet: true}));
+  const n = [...hits].filter(Boolean).length;
+  toast(n > 1 ? `Saved – ${n} highlighted` : 'Saved');
+}
+$('#gear').onclick = () => { if (DEV.skipClick) { DEV.skipClick = false; return; } S.tab === 'settings' ? setTab('match') : openSettings(null); };
+// Reset: every parameter with a default takes it, and those defaults are used for ranking at once.
+$('#hreset').onclick = () => {
+  S.inputs = {}; S.entered = [];
+  S.parameters.forEach(p => { if (p.def != null) { S.inputs[p.id] = isMulti(p) ? [p.def] : p.def; S.entered.push(p.id); } });
+  S.selectedId = null;
+  save(); renderMatch();
+  toast(S.entered.length ? `Inputs reset; ${S.entered.length} default value${S.entered.length > 1 ? 's' : ''} used for ranking` : 'Inputs cleared – no parameter has a default value');
+};
 // Sliders move only when the round thumb is grabbed; a press elsewhere on the track is ignored.
 const THUMB = 28;
 function onThumb(el, x){
@@ -1150,9 +1287,9 @@ function renderMatch(){
     return;
   }
   S.collapsed = S.collapsed || {};
-  MKEYS.forEach(k => { if (S.collapsed[k] === undefined) S.collapsed[k] = true; });
+  MKEYS.forEach(k => { if (S.collapsed[k] === undefined) S.collapsed[k] = false; });
   view.innerHTML =
-    section('m-inputs', 'Input Parameters', '<button class="link" id="resetIn">Reset to defaults</button>', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`) +
+    section('m-inputs', 'Input Parameters', '', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`) +
     section('m-result', 'Result', '', '<div id="result"></div>') +
     section('m-list', 'All Products', '', `<div id="list"></div>
       <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span><span style="--c:var(--bad)">⚠ Do not combine with the selected product</span><span style="--c:var(--gray)">✕ Not suitable (◆ must-match not met)</span></div>`, 'listTitle');
@@ -1191,12 +1328,6 @@ function renderMatch(){
     el.classList.remove('unset');
     userInput(id, v);
   }));
-  // Reset: defaults are placed, but no result is shown until a parameter is entered.
-  $('#resetIn').onclick = () => {
-    S.inputs = {}; S.parameters.forEach(p => { if (p.def != null) S.inputs[p.id] = isMulti(p) ? [p.def] : p.def; });
-    S.selectedId = null; S.entered = [];
-    save(); renderMatch(); toast('Inputs reset to parameter defaults');
-  };
   wireSplit();
   updateMatch();
   layoutMatch();
@@ -1294,7 +1425,11 @@ function setSection(key, open){
 // an unlocked adjustment lasts until the next expand or collapse.
 // Pane off: the section shows its full content and the page scrolls.
 const MKEYS = ['m-inputs', 'm-result', 'm-list'];
-const ICON_PANE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M12 7v10"/><path d="m9.5 9.5 2.5-2.5 2.5 2.5"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>';
+const ICON_PANE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="pb" x="3.5" y="2.5" width="17" height="19" rx="4"/><g fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pg"><path d="M12 7v10"/><path d="m9.5 9.5 2.5-2.5 2.5 2.5"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></g></svg>';
+const ICON_RESET = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.6h4.6"/></svg>';
+// Lock icons (three styles offered for approval; S.lockStyle 1, 2 or 3).
+const ICON_LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const ICON_UNLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.8" fill="none" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const paneOf = k => Object.assign({on: true, h: null, locked: false, tmp: null}, (S.pane || {})[k] || {});
 function setPane(k, o){ S.pane = Object.assign({}, S.pane || {}); S.pane[k] = Object.assign(paneOf(k), o); }
 function layoutMatch(){
@@ -1307,14 +1442,27 @@ function layoutMatch(){
     body.classList.toggle('vpane', pv.on);
     bar.style.display = open && pv.on ? '' : 'none';
     bar.classList.toggle('locked', pv.locked);
-    const lb = bar.querySelector('[data-lock]'); lb.textContent = pv.locked ? '🔒' : '🔓'; lb.setAttribute('aria-label', pv.locked ? 'Unlock pane height' : 'Lock pane height');
+    const lb = bar.querySelector('[data-lock]'); lb.innerHTML = (pv.locked ? ICON_LOCK : ICON_UNLOCK) + `<span class="lt">${pv.locked ? 'Locked' : 'Unlocked'}</span>`; lb.setAttribute('aria-label', pv.locked ? 'Locked – tap to unlock pane height' : 'Unlocked – tap to lock pane height');
     if (!open || !pv.on) { body.style.height = ''; return; }
     const fixed = pv.locked && pv.h ? pv.h : pv.tmp;
     if (fixed) body.style.height = fixed + 'px'; else { body.style.height = '0px'; auto.push(body); }
   });
   if (auto.length) {
-    const used = view.getBoundingClientRect().bottom + window.scrollY;
-    const each = Math.max(140, Math.floor((window.innerHeight - used - 14) / auto.length));
+    // Screen height: the larger of the layout and visual viewport (iOS Home Screen apps can report
+    // a smaller value while starting). Used space ends at the last section, excluding page padding.
+    const H = Math.max(window.innerHeight, document.documentElement.clientHeight, window.visualViewport ? window.visualViewport.height : 0);
+    const last = view.querySelector('[data-section="m-list"]');
+    // (an automatic pane at height 0 still occupies its padding, so that is added back)
+    const used = last.getBoundingClientRect().bottom + window.scrollY - auto.reduce((a, b) => a + b.offsetHeight, 0);
+    let avail = H - used - 6;
+    // Result: an automatic pane fits its first segment (score, product, alternatives) when that fits.
+    const rb = view.querySelector('[data-section="m-result"] .sec-body');
+    const head = auto.includes(rb) && rb.querySelector('.rhead');
+    if (head && auto.length > 1) {
+      const want = head.offsetHeight + 20;
+      if (want <= avail - 96 * (auto.length - 1)) { rb.style.height = want + 'px'; avail -= want; auto.splice(auto.indexOf(rb), 1); }
+    }
+    const each = Math.max(auto.length < MKEYS.filter(k => !S.collapsed[k] && paneOf(k).on && !(paneOf(k).locked && paneOf(k).h)).length ? 96 : 140, Math.floor(avail / auto.length));
     auto.forEach(b => b.style.height = each + 'px');
   }
   view.querySelectorAll('#inGrid .valin').forEach(el => el._flag && placeFlag(el));
@@ -1343,7 +1491,7 @@ function wireSplit(){
     };
     bar.onpointerdown = e => {
       if (e.target.closest('[data-lock]')) return;
-      if (paneOf(k).locked) { toast('Locked – tap 🔒 to unlock'); return; }
+      if (paneOf(k).locked) { toast('Locked – tap the lock to unlock'); return; }
       const B = body(), h0 = B.offsetHeight, y0 = e.clientY + window.scrollY;
       let lastY = e.clientY, h = h0;
       bar.setPointerCapture(e.pointerId); bar.classList.add('drag'); e.preventDefault();
@@ -1422,7 +1570,8 @@ function updateMatch(){
     const fits = act.map(p => fitRow(p, shown.fits[p.id])).join('');
     const notRel = act.length - shown.n;
     const alts = res.filter(r => r !== shown && !r.unsuit).slice(0, 3).map(r => `<button data-pick="${r.pr.id}" class="${conflicts(shown.pr, r.pr) ? 'xalt' : ''}">${conflicts(shown.pr, r.pr) ? '⚠ ' : ''}${esc(r.pr.name)} · ${Math.round(r.score)}%</button>`).join('');
-    box.innerHTML = `<div class="card">
+    box.dataset.shown = shown.pr.id;
+    box.innerHTML = `<div class="card"><div class="rhead">
       <div class="result-top">
         <div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="64" fill="none" stroke="var(--soft)" stroke-width="13"/>
           <circle cx="75" cy="75" r="64" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - shown.score / 100)}" style="transition:stroke-dashoffset .4s"/></svg>
@@ -1433,14 +1582,13 @@ function updateMatch(){
           <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div>
           ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
       </div>
+      ${alts ? `<div class="alts"><span class="small muted">${isBest ? 'Alternatives:' : 'Other candidates:'}</span>${alts}</div>` : ''}</div>
       <div style="margin-top:12px">${fits}</div>
-      ${alts ? `<div class="alts"><span class="small muted">${isBest ? 'Alternatives:' : 'Other candidates:'}</span>${alts}</div>` : ''}
     </div>`;
     box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.selectedId = b.dataset.pick; save(); updateMatch(); });
   }
-  const scored = act.length && anyRel;
+  const listTop = $('#list').scrollTop, scored = act.length && anyRel;
   $('#listTitle .ttl').textContent = scored ? 'All Products – Ranked by Match' : 'All Products';
-  const listTop = $('#list').scrollTop;
   $('#list').innerHTML = res.map((r, i) => {
     const sc = r.score >= 95 ? 'var(--good)' : r.score >= 60 ? 'var(--warn)' : 'var(--bad)';
     const chips = S.parameters.map(p => {
@@ -1450,10 +1598,10 @@ function updateMatch(){
       else if (isBool(p)) val = r.pr.flags[p.id] ? BL[r.pr.flags[p.id]] : '—';
       else val = esc(rangeText(r.pr, p));
       const mm = rel && r.pr.must && r.pr.must[p.id];
-      return `<div class="chip ${!rel ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''}"><span class="muted">${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${val}</b></div>`;
+      return `<div class="chip ${!rel || !scored ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''}" data-pc="${p.id}"><span class="muted">${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${val}</b></div>`;
     }).join('');
     const xc = scored && shown && conflicts(shown.pr, r.pr), na = avoidOf(r.pr).length;
-    return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''} ${scored && r.unsuit ? 'unsuit' : ''}" data-row="${r.pr.id}">
+    return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''} ${scored && r.unsuit ? 'unsuit' : ''} ${scored ? '' : 'unscored'}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
         <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${avoidIcon(r.pr)}
           ${xc ? `<div><span class="xtag">⚠ Do not combine with ${esc(shown.pr.name)}</span></div>` : ''}
@@ -1478,13 +1626,13 @@ function fitRow(p, f){
   if (isMulti(p)) {
     const lab = a => (a || []).map(id => vlabel(p, id)).filter(Boolean).join(', ');
     const txt = f.excluded ? 'Not relevant' : f.st === 'missing' ? 'No data' : f.st === 'within' ? 'All match' : `${f.d} of ${f.v.length} match`;
-    return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
+    return `<div class="fit" data-fp="${p.id}"><div class="row"><b class="small">${esc(p.name)}</b>
       <span class="xsmall muted">Input ${esc(lab(f.v))} · Product ${f.r ? esc(lab(f.r)) : '—'} · ${wl}</span>
       <span class="st c-${st}">${txt}</span></div></div>`;
   }
   if (isBool(p)) {
     const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Matches' : f.st === 'missing' ? 'No data' : 'Does not match';
-    return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
+    return `<div class="fit" data-fp="${p.id}"><div class="row"><b class="small">${esc(p.name)}</b>
       <span class="xsmall muted">Input ${BL[f.v]} · Product ${f.r ? BL[f.r] : '—'} · ${wl}</span>
       <span class="st c-${st}">${txt}</span></div></div>`;
   }
@@ -1498,7 +1646,7 @@ function fitRow(p, f){
   const cl = x => Math.max(lo, Math.min(hi, x));   // open-ended ranges run to the edge of the track
   const band = f.r && !f.excluded ? `<div class="band" style="left:${pos(cl(f.r[0]))}%;width:${Math.max(pos(cl(f.r[1])) - pos(cl(f.r[0])), 1.5)}%"></div>` : '';
   const rt = r => !isFinite(r[0]) ? '≤ ' + (isVar(p) ? labOfNum(p, r[1]) : fmt(r[1])) : !isFinite(r[1]) ? '≥ ' + (isVar(p) ? labOfNum(p, r[0]) : fmt(r[0])) : isVar(p) ? varSpan(p, r[0], r[1]) : fmt(r[0]) + '–' + fmt(r[1]);
-  return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
+  return `<div class="fit" data-fp="${p.id}"><div class="row"><b class="small">${esc(p.name)}</b>
     <span class="xsmall muted">${f.r && !f.excluded ? esc(rt(f.r)) + (isVar(p) ? '' : ' ' + esc(p.unit)) + ' · ' : ''}${esc(wl)}</span>
     <span class="st c-${st}">${esc(txt)}</span></div>
     <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div>${lim}</div>`;
@@ -2427,7 +2575,7 @@ function openSheet(title, html, onSave, onMount){
   $('#sheetBody').querySelectorAll('textarea').forEach(t => { t.classList.add('grow'); t.addEventListener('input', () => autoGrow(t)); autoGrow(t); });
 }
 function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; }
-$('#sheetCancel').onclick = closeSheet;
+$('#sheetCancel').onclick = () => { closeSheet(); if (DEV.ctx) devReturn(false); };
 $('#sheetSave').onclick = async () => {
   // Highlighted fields: save only after confirming that the values shown are accepted.
   const pend = pendingFlags($('#sheetBody'));
@@ -2439,7 +2587,7 @@ $('#sheetSave').onclick = async () => {
     if (!ok) return;
     acceptAll($('#sheetBody'));
   }
-  const err = sheetSave && await sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet();
+  const err = sheetSave && await sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else { closeSheet(); if (DEV.ctx) devReturn(true); }
 };
 
 /* ======================= SAMPLE DATA ======================= */
@@ -2475,12 +2623,27 @@ function sample(){
 // untouched (not overwritten) and the app opens empty.
 S = load();
 if (!readOnly) save(); else toast('Saved data for this profile could not be read; it is kept unchanged and changes are not saved.');
-// Match is always the opening view with every section collapsed; inputs are kept from last time.
-S.collapsed = Object.assign(S.collapsed || {}, {'m-inputs': true, 'm-result': true, 'm-list': true});
+// Match is the opening view. The sections open as they were last time; on first use (no saved view)
+// all three are expanded.
+S.collapsed = S.collapsed || {};
+if (MKEYS.every(k => S.collapsed[k] === undefined)) MKEYS.forEach(k => S.collapsed[k] = false);
+document.body.setAttribute('data-lock', String(S.lockStyle || 1));
 setTab('match');
-window.addEventListener('resize', () => { if (S.tab !== 'settings') layoutMatch(); });
+const relayout = () => { if (S.tab !== 'settings') layoutMatch(); };
+window.addEventListener('resize', relayout);
+window.addEventListener('orientationchange', () => setTimeout(relayout, 300));
+window.addEventListener('pageshow', () => setTimeout(relayout, 50));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', relayout);
+setTimeout(relayout, 400);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// Updates: the page is fetched from the network first, and when a new service worker takes control the
+// app reloads once, so a single launch while online shows the latest version.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const had = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; save(); location.reload(); } });
+  navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'}).then(r => r.update()).catch(() => {});
+}
 </script>
 </body>
 </html>

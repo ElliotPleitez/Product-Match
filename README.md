@@ -90,6 +90,10 @@ Data is deleted if the app is removed from the Home Screen or the iPhone is eras
 
 ## Updating the app
 
+The page is loaded from the network first when online, and the app reloads itself once when a new version is installed, so one launch while online shows the latest version. Offline, the saved copy is used.
+
+## Updating the app (maintainer)
+
 Upload the changed file to the same repository. Also increase `VERSION` in `sw.js` (e.g., `product-match-v2`). The update appears the second time the app is opened while online. Stored data is retained.
 
 ## CSV format
@@ -124,10 +128,16 @@ In the product editor, each relevant parameter has **◆ Must match**. When that
 
 ## Match panes
 
-Match opens with Input Parameters, Result and All Products collapsed; nothing opens or closes on its own. The icon beside each section title turns its **scroll pane** on or off:
+Match opens with the sections as they were last time (on first use, all three are expanded). Nothing opens or closes on its own. **Reset** (circular-arrow icon left of Settings) applies every parameter's default value and ranks the products with them. Before any input, products are shown gray (not relevant / no data).
 
-- **On:** the section scrolls inside its own pane; panes without a set height share the rest of the screen. Drag the bar under the pane to change its height (Input Parameters snaps to whole tiles); holding near the bottom edge lets the pane extend past the screen. Tap 🔓 on the bar to lock that height (🔒): the section reopens at that height every time it is expanded. Unlocked adjustments last until the next expand or collapse. Each bar has its own lock.
+The icon at the right of each section title turns its **scroll pane** on (solid) or off (gray):
+
+- **On:** the section scrolls inside its own pane; panes without a set height share the rest of the screen. Result's pane fits its first segment (score, product and alternatives) when it can. Drag the bar under a pane to change its height (Input Parameters snaps to whole tiles); holding near the bottom edge lets the pane extend past the screen. Tap the lock on the bar to keep that height every time the section is expanded; unlocked adjustments last until the next expand or collapse. Each bar has its own lock.
 - **Off:** the section shows its full content and the page scrolls.
+
+## Developer mode
+
+Hold the Settings icon for 2 seconds to turn developer mode on or off (the icon shakes and shows `</>`). While it is on, hold a parameter tile, a product row or the Result for ½ second: the editor opens at the matching field (for example a product chip opens that parameter's values). After **Save**, Match returns to the same position, and the edited value and any other changed values are highlighted.
 
 ## Product range checks
 
