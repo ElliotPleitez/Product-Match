@@ -109,7 +109,7 @@ Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. 
 
 ## Do-not-combine products
 
-In the product editor, **⚠ Do not combine with** lists the other products; tap one to mark that the two should not be used together (applies to both products), and add the reason. On Match, the Result shows a red warning listing those products with the reason; in All Products, rows that conflict with the selected or best product are outlined in red and tagged, and any product with pairs shows ⚠ and the count. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
+In the product editor, **⚠ Do not combine with** lists the other products; tap one to mark that the two should not be used together (applies to both products), and add the reason. A red ⚠ icon beside the product's name (Result, All Products and Settings ▸ Products) opens the list of products not to combine with and the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
 
 ## Must match
 
@@ -124,7 +124,10 @@ In the product editor, each relevant parameter has **◆ Must match**. When that
 
 ## Match panes
 
-Match opens with Input Parameters, Result and All Products collapsed; nothing opens or closes on its own. Each expanded section scrolls inside its own pane, and together the panes fill the screen, split by how many are expanded. Drag the bar under a pane to change the split; tap 🔓 on a bar to lock the split (🔒), so the panes return to that position each time a section is expanded or collapsed. Tap 🔒 to unlock.
+Match opens with Input Parameters, Result and All Products collapsed; nothing opens or closes on its own. The icon beside each section title turns its **scroll pane** on or off:
+
+- **On:** the section scrolls inside its own pane; panes without a set height share the rest of the screen. Drag the bar under the pane to change its height (Input Parameters snaps to whole tiles); holding near the bottom edge lets the pane extend past the screen. Tap 🔓 on the bar to lock that height (🔒): the section reopens at that height every time it is expanded. Unlocked adjustments last until the next expand or collapse. Each bar has its own lock.
+- **Off:** the section shows its full content and the page scrolls.
 
 ## Product range checks
 

@@ -287,12 +287,16 @@ section.collapsed .splitbar{display:none!important}
 .splitbar .grip{width:56px;height:5px;border-radius:3px;background:var(--line)}
 .splitbar.drag .grip{background:var(--accent)}
 .splitbar.locked{cursor:default}.splitbar.locked .grip{opacity:.4}
+.panebtn{color:var(--muted);border-radius:7px}.panebtn.on{color:var(--accent);background:var(--soft)}
+.sec-h .panebtn{margin-left:6px}
 .lockbtn{position:absolute;right:2px;top:50%;transform:translateY(-50%);border:1px solid var(--line);background:var(--card);border-radius:999px;font-size:12px;line-height:1;padding:4px 8px;cursor:pointer}
 /* info (description) and graduation-cap (reasoning) icons beside titles */
 .ibtn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-left:4px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--accent);cursor:pointer;vertical-align:middle}
 .ibtn svg{width:19px;height:19px}
 .ibtn:active{background:var(--soft)}
 .tline{display:flex;align-items:center;flex-wrap:wrap;gap:0}
+.ibtn.xbtn{color:var(--bad)}
+.dlg-card p .xwarn{margin-top:0}
 .pname .ibtn{width:30px;height:30px}.pname .ibtn svg{width:22px;height:22px}
 /* brief highlight that fades out */
 @keyframes hlfade{0%,55%{box-shadow:0 0 0 2px var(--flag);background-color:color-mix(in srgb,var(--flag) 13%,var(--card))}}
@@ -395,10 +399,18 @@ function infoIcons(kind, id, d, r){
   return (d ? `<button type="button" class="ibtn" data-info="${kind}|${id}|d" aria-label="Description">${ICON_INFO}</button>` : '')
     + (r ? `<button type="button" class="ibtn cap" data-info="${kind}|${id}|r" aria-label="Reasoning">${ICON_CAP}</button>` : '');
 }
+const ICON_AVOID = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20.5h20z"/><path d="M12 9.5v5"/><circle cx="12" cy="17.6" r="1.1" fill="currentColor" stroke="none"/></svg>';
+// Do-not-combine icon: opens the list of products not to use with this one, and the reason.
+const avoidIcon = pr => avoidOf(pr).length ? `<button type="button" class="ibtn xbtn" data-info="x|${pr.id}|a" aria-label="Do not combine (${avoidOf(pr).length})">${ICON_AVOID}</button>` : '';
 function showInfo(key){
   const [kind, id, f] = key.split('|');
-  const o = kind === 'p' ? P(id) : S.products.find(x => x.id === id);
+  const o = kind === 'p' ? P(id) : S.products.find(x => x.id === id);   // 'r' and 'x' are products
   if (!o) return;
+  if (kind === 'x') {
+    askConfirm({title: `${o.name} – Do not combine`, ok: 'OK', cancel: false,
+      html: `<div class="xwarn">⚠ Do not combine with: ${esc(avoidOf(o).map(x => x.name).join(', '))}${o.avoidNote ? `<span class="xn">${esc(o.avoidNote)}</span>` : ''}</div>`});
+    return;
+  }
   const text = kind === 'p' ? (f === 'r' ? o.reason : o.details) : o.notes;
   askConfirm({title: `${o.name} – ${f === 'r' ? 'Reasoning' : 'Description'}`, msg: text || '—', ok: 'OK', cancel: false});
 }
@@ -914,9 +926,11 @@ function moveItem(arr, i, dir, id){
 function section(key, title, action, body, h2id){
   const c = S.collapsed && S.collapsed[key];
   // Match sections: the body is a scrolling pane; the bar below it adjusts the split (and locks it).
-  const bar = key.startsWith('m-') ? `<div class="splitbar" data-split="${key}"><span class="grip" aria-hidden="true"></span><button type="button" class="lockbtn" data-lock aria-label="Lock pane split"></button></div>` : '';
+  const m = key.startsWith('m-');
+  const bar = m ? `<div class="splitbar" data-split="${key}"><span class="grip" aria-hidden="true"></span><button type="button" class="lockbtn" data-lock aria-label="Lock pane height"></button></div>` : '';
+  const pt = m ? `<button type="button" class="ibtn panebtn" data-pane="${key}" aria-label="Scroll pane">${ICON_PANE}</button>` : '';
   return `<section class="${c ? 'collapsed' : ''}" data-section="${key}">
-    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2><span class="spacer"></span>${action || ''}</div>
+    <div class="sec-h"><h2 class="ctl" data-collapse="${key}"${h2id ? ` id="${h2id}"` : ''}><span class="caret">▾</span><span class="ttl">${title}</span></h2>${pt}<span class="spacer"></span>${action || ''}</div>
     <div class="sec-body">${body}</div>${bar}</section>`;
 }
 function slide(sec, closing){
@@ -1037,10 +1051,12 @@ function animateOut(el, done){
 }
 // In-app confirmation (same style for every delete and for saving with open prompts). Resolves true/false.
 // alt: label of a third button (resolves 'alt'). input: initial text (resolves the trimmed text, or null).
-function askConfirm({title, msg, ok = 'OK', danger = false, cancel = true, alt = null, input = null}){
+function askConfirm({title, msg, ok = 'OK', danger = false, cancel = true, alt = null, input = null, html = null}){
   return new Promise(res => {
     const d = $('#dlg'), inp = $('#dlgIn'), ab = $('#dlgAlt');
-    $('#dlgT').textContent = title; $('#dlgM').textContent = msg || ''; $('#dlgM').style.display = msg ? '' : 'none';
+    $('#dlgT').textContent = title;
+    if (html) $('#dlgM').innerHTML = html; else $('#dlgM').textContent = msg || '';
+    $('#dlgM').style.display = msg || html ? '' : 'none';
     $('#dlgNo').style.display = cancel ? '' : 'none';
     ab.style.display = alt ? '' : 'none'; ab.textContent = alt || '';
     inp.style.display = input != null ? '' : 'none'; inp.value = input ?? '';
@@ -1115,7 +1131,7 @@ function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = '', kind =
   return `<div class="card lcard ${cls}" data-card="${id}">
     <div class="mv"><button data-act="up" data-id="${id}" ${i ? '' : 'disabled'} aria-label="Move up">▲</button><button data-act="down" data-id="${id}" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">▼</button></div>
     <div class="lbody" data-act="edit" data-id="${id}">
-      <div class="tline"><b class="ltitle" data-field="name">${esc(title)}</b>${infoIcons(kind === 'params' ? 'p' : 'r', id, !!desc, !!reason)}</div>
+      <div class="tline"><b class="ltitle" data-field="name">${esc(title)}</b>${infoIcons(kind === 'params' ? 'p' : 'r', id, !!desc, !!reason)}${kind === 'products' ? avoidIcon(S.products.find(x => x.id === id)) : ''}</div>
       ${meta ? `<div class="xsmall ${metaWarn ? 'warn-text' : 'muted'}">${meta}</div>` : ''}
       <div class="chips ${kind === 'params' ? 'wrap' : 'sync'}">${chips}</div>
     </div>
@@ -1271,53 +1287,74 @@ function setSection(key, open){
   const sec = view.querySelector(`[data-section="${key}"]`);
   if (sec && sec.classList.contains('collapsed') === open) slide(sec, !open);
 }
-// Match panes: each expanded section scrolls inside its own pane, and together the panes fill the
-// screen. The split follows each pane's weight (S.splitW); dragging the bar under a pane moves the
-// split between it and the next expanded pane. With the split locked (S.splitLock), every expand or
-// collapse returns to the locked position, and dragging is off.
+// Match panes. The icon beside each title turns that section's scroll pane on or off.
+// Pane on: the section scrolls inside a pane; panes without a set height share the rest of the screen.
+// The bar under a pane adjusts its height (Input Parameters snaps to whole tiles) and may be dragged
+// past the bottom of the screen. Locking the bar keeps that height every time the section is expanded;
+// an unlocked adjustment lasts until the next expand or collapse.
+// Pane off: the section shows its full content and the page scrolls.
 const MKEYS = ['m-inputs', 'm-result', 'm-list'];
-const splitW = k => (S.splitW && S.splitW[k] > 0 ? S.splitW[k] : 1);
+const ICON_PANE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M12 7v10"/><path d="m9.5 9.5 2.5-2.5 2.5 2.5"/><path d="m9.5 14.5 2.5 2.5 2.5-2.5"/></svg>';
+const paneOf = k => Object.assign({on: true, h: null, locked: false, tmp: null}, (S.pane || {})[k] || {});
+function setPane(k, o){ S.pane = Object.assign({}, S.pane || {}); S.pane[k] = Object.assign(paneOf(k), o); }
 function layoutMatch(){
   if (S.tab === 'settings' || !$('#inGrid')) return;
-  const secs = MKEYS.map(k => view.querySelector(`[data-section="${k}"]`)), open = MKEYS.filter(k => !S.collapsed[k]);
-  secs.forEach((sec, i) => {
-    const body = sec.querySelector('.sec-body'), bar = sec.querySelector('.splitbar'), k = MKEYS[i];
-    body.classList.add('vpane'); body.style.height = '0px';
-    const showBar = open.includes(k) && open.indexOf(k) < open.length - 1;
-    bar.style.display = showBar ? '' : 'none';
-    bar.classList.toggle('locked', !!S.splitLock);
-    bar.querySelector('.lockbtn').innerHTML = S.splitLock ? '🔒' : '🔓';
-    bar.querySelector('.lockbtn').setAttribute('aria-label', S.splitLock ? 'Unlock pane split' : 'Lock pane split');
+  const auto = [];
+  MKEYS.forEach(k => {
+    const sec = view.querySelector(`[data-section="${k}"]`), body = sec.querySelector('.sec-body'), bar = sec.querySelector('.splitbar'), pv = paneOf(k), open = !S.collapsed[k];
+    const pb = sec.querySelector('[data-pane]');
+    pb.classList.toggle('on', pv.on); pb.setAttribute('aria-pressed', pv.on); pb.setAttribute('aria-label', pv.on ? 'Scroll pane on – tap for full list' : 'Scroll pane off – tap for scroll pane');
+    body.classList.toggle('vpane', pv.on);
+    bar.style.display = open && pv.on ? '' : 'none';
+    bar.classList.toggle('locked', pv.locked);
+    const lb = bar.querySelector('[data-lock]'); lb.textContent = pv.locked ? '🔒' : '🔓'; lb.setAttribute('aria-label', pv.locked ? 'Unlock pane height' : 'Lock pane height');
+    if (!open || !pv.on) { body.style.height = ''; return; }
+    const fixed = pv.locked && pv.h ? pv.h : pv.tmp;
+    if (fixed) body.style.height = fixed + 'px'; else { body.style.height = '0px'; auto.push(body); }
   });
-  if (!open.length) { secs.forEach(sec => sec.querySelector('.sec-body').style.height = ''); return; }
-  const used = view.getBoundingClientRect().bottom + window.scrollY;   // header + section titles + bars
-  const avail = Math.max(open.length * 120, window.innerHeight - used - 14);
-  const tw = open.reduce((a, k) => a + splitW(k), 0);
-  open.forEach(k => { view.querySelector(`[data-section="${k}"] .sec-body`).style.height = Math.max(100, Math.floor(avail * splitW(k) / tw)) + 'px'; });
+  if (auto.length) {
+    const used = view.getBoundingClientRect().bottom + window.scrollY;
+    const each = Math.max(140, Math.floor((window.innerHeight - used - 14) / auto.length));
+    auto.forEach(b => b.style.height = each + 'px');
+  }
   view.querySelectorAll('#inGrid .valin').forEach(el => el._flag && placeFlag(el));
 }
-// Drag the bar under a pane to resize it against the next expanded pane.
+// Input Parameters: nearest height that ends at the bottom of a tile.
+function snapTiles(body, h){
+  const top = body.getBoundingClientRect().top - body.scrollTop, pad = 8;
+  const ends = [...new Set([...body.querySelectorAll('#inGrid > .inp')].map(t => Math.round(t.getBoundingClientRect().bottom - top + pad)))].sort((a, b) => a - b);
+  if (!ends.length) return h;
+  return ends.reduce((best, e) => Math.abs(e - h) < Math.abs(best - h) ? e : best, ends[0]);
+}
 function wireSplit(){
+  view.querySelectorAll('[data-pane]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const k = b.dataset.pane, on = !paneOf(k).on;
+    setPane(k, {on, tmp: null}); save(); layoutMatch();
+    toast(on ? 'Scroll pane on' : 'Scroll pane off – full list shown');
+  });
   view.querySelectorAll('.splitbar').forEach(bar => {
+    const k = bar.dataset.split, body = () => view.querySelector(`[data-section="${k}"] .sec-body`);
     bar.querySelector('[data-lock]').onclick = e => {
       e.stopPropagation();
-      if (S.splitLock) { S.splitLock = null; toast('Pane split unlocked – drag the bars to adjust'); }
-      else { S.splitLock = Object.fromEntries(MKEYS.map(k => [k, splitW(k)])); toast('Pane split locked – panes reopen at this position'); }
+      if (paneOf(k).locked) { setPane(k, {locked: false}); toast('Unlocked – drag the bar to adjust'); }
+      else { setPane(k, {locked: true, h: body().offsetHeight, tmp: null}); toast('Locked – this pane reopens at this height'); }
       save(); layoutMatch();
     };
     bar.onpointerdown = e => {
-      if (e.target.closest('[data-lock]') || S.splitLock) { if (S.splitLock && !e.target.closest('[data-lock]')) toast('Split is locked – tap 🔒 to unlock'); return; }
-      const open = MKEYS.filter(k => !S.collapsed[k]), k = bar.dataset.split, nk = open[open.indexOf(k) + 1];
-      if (!nk) return;
-      const A = view.querySelector(`[data-section="${k}"] .sec-body`), B = view.querySelector(`[data-section="${nk}"] .sec-body`);
-      const a0 = A.offsetHeight, b0 = B.offsetHeight, y0 = e.clientY;
+      if (e.target.closest('[data-lock]')) return;
+      if (paneOf(k).locked) { toast('Locked – tap 🔒 to unlock'); return; }
+      const B = body(), h0 = B.offsetHeight, y0 = e.clientY + window.scrollY;
+      let lastY = e.clientY, h = h0;
       bar.setPointerCapture(e.pointerId); bar.classList.add('drag'); e.preventDefault();
-      bar.onpointermove = ev => { const a = Math.max(80, Math.min(a0 + b0 - 80, a0 + ev.clientY - y0)); A.style.height = a + 'px'; B.style.height = (a0 + b0 - a) + 'px'; };
+      const apply = () => { let v = Math.max(80, h0 + (lastY + window.scrollY - y0)); if (k === 'm-inputs') v = snapTiles(B, v); h = v; B.style.height = v + 'px'; };
+      // Holding near the bottom edge scrolls the page so the pane can extend past the screen.
+      const timer = setInterval(() => { if (lastY > window.innerHeight - 48) { window.scrollBy(0, 14); apply(); } }, 40);
+      bar.onpointermove = ev => { lastY = ev.clientY; apply(); };
       bar.onpointerup = bar.onpointercancel = () => {
+        clearInterval(timer);
         bar.onpointermove = bar.onpointerup = bar.onpointercancel = null; bar.classList.remove('drag');
-        const hs = open.map(x => view.querySelector(`[data-section="${x}"] .sec-body`).offsetHeight), tot = hs.reduce((m, h) => m + h, 0);
-        S.splitW = Object.assign({}, S.splitW || {}); open.forEach((x, i) => S.splitW[x] = hs[i] / tot * open.length);
-        save();
+        setPane(k, {tmp: h}); save();
       };
     };
   });
@@ -1331,7 +1368,7 @@ function keepRow(){
 }
 // Expanding or collapsing never opens or closes another section; the panes are re-split.
 function matchSectionToggled(key, open){
-  if (S.splitLock) S.splitW = Object.assign({}, S.splitLock);
+  MKEYS.forEach(k => { if (!paneOf(k).locked) setPane(k, {tmp: null}); });   // unlocked panes return to the shared split
   save(); layoutMatch();
   if (open && key === 'm-list') keepRow();
 }
@@ -1391,9 +1428,8 @@ function updateMatch(){
           <circle cx="75" cy="75" r="64" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - shown.score / 100)}" style="transition:stroke-dashoffset .4s"/></svg>
           <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span><span class="xsmall muted">(score: ${fmt(shown.pts)} of ${fmt(shown.tot)})</span></div></div>
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
-          <div class="pname">${esc(shown.pr.name)}${infoIcons('r', shown.pr.id, !!shown.pr.notes, false)}</div>
+          <div class="pname">${esc(shown.pr.name)}${infoIcons('r', shown.pr.id, !!shown.pr.notes, false)}${avoidIcon(shown.pr)}</div>
           ${shown.unsuit ? `<div class="xwarn nsuit">✕ Not suitable – must-match not met: ${esc(shown.fails.join(', '))}${isBest ? '<span class="xn">No product meets every must-match parameter for these inputs.</span>' : ''}</div>` : ''}
-          ${avoidOf(shown.pr).length ? `<div class="xwarn">⚠ Do not combine with: ${esc(avoidOf(shown.pr).map(o => o.name).join(', '))}${shown.pr.avoidNote ? `<span class="xn">${esc(shown.pr.avoidNote)}</span>` : ''}</div>` : ''}
           <div class="small" style="margin-top:6px"><b>${shown.within}</b> of <b>${shown.n}</b> relevant parameters within the product's allowable values.${notRel ? ` ${notRel} entered parameter(s) not relevant to this product.` : ''}</div>
           ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
       </div>
@@ -1419,7 +1455,7 @@ function updateMatch(){
     const xc = scored && shown && conflicts(shown.pr, r.pr), na = avoidOf(r.pr).length;
     return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''} ${scored && r.unsuit ? 'unsuit' : ''}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
-        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${na ? `<span class="xico" title="Has do-not-combine products">⚠ ${na}</span>` : ''}
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${avoidIcon(r.pr)}
           ${xc ? `<div><span class="xtag">⚠ Do not combine with ${esc(shown.pr.name)}</span></div>` : ''}
           ${scored && r.unsuit ? `<div><span class="ntag">✕ Not suitable: ${esc(r.fails.join(', '))}</span></div>` : ''}
 </div>
@@ -1582,8 +1618,7 @@ function editParam(id, field){
       <div class="xsmall muted" style="margin:0 2px">0 = excluded · 5 = standard · 10 = critical. Can be changed per product.</div></div>
     ${enableList}
     <div class="field"><label>Description</label><textarea id="fDesc" placeholder="What the parameter is and how it is measured">${esc(p.details)}</textarea></div>
-    <div class="field"><label>Reasoning</label><textarea id="fReason" placeholder="Why the parameter matters for selection, with its source">${esc(p.reason || '')}</textarea>
-      <div class="xsmall muted" style="margin:5px 2px">Shown under the description in Normal mode; hidden in Advanced and Expert.</div></div>
+    <div class="field"><label>Reasoning</label><textarea id="fReason" placeholder="Why the parameter matters for selection, with its source">${esc(p.reason || '')}</textarea></div>
     <div id="fErr" class="small err-text"></div>`,
     async () => {
       const type = $('#fType').value, t = TYPES[type];
@@ -1854,7 +1889,7 @@ function renderProducts(box, act){
         const rel = relOf(pr, p), on = rel.on && rel.w > 0;
         const val = on ? esc(rangeText(pr, p)) : 'N/A';
         return chip((on && pr.must && pr.must[p.id] ? '◆ ' : '') + esc(p.name) + (on ? ' · W' + rel.w : ''), val, on ? '' : 'na', 'pf:' + p.id);
-      }).join('') + (avoidOf(pr).length ? chip('⚠ Do not combine', esc(avoidOf(pr).map(o => o.name).join(', ')), 'xc', 'avoid') : '');
+      }).join('');
       return listCard(pr.id, i, n, pr.name, done === relP.length ? `${done}/${relP.length} complete${na ? ` · ${na} N/A` : ''}` : `${relP.length - done} value(s) missing · ${done}/${relP.length} complete`, done !== relP.length, pr.notes, chips, done !== relP.length ? 'incomplete' : '', 'products');
     }).join('')
     : `<div class="card muted small">No products yet. Select <b>+ Add</b> to enter a product, its allowable values, and which parameters are relevant.</div>`;
