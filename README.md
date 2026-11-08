@@ -88,6 +88,10 @@ Parameters and products can be reordered with the ▲ / ▼ buttons on the left 
 
 Data is deleted if the app is removed from the Home Screen or the iPhone is erased. Export a CSV after significant changes and save it to iCloud Drive or OneDrive.
 
+## Splash screen
+
+The app opens with the logo and title for one second.
+
 ## Updating the app
 
 The page is loaded from the network first when online, and the app reloads itself once when a new version is installed, so one launch while online shows the latest version. Offline, the saved copy is used.
@@ -105,6 +109,8 @@ See `ProductMatch-Settings-Template.csv`. Sections `[SETTINGS]`, `[PARAMETERS]`,
 - In Excel, save as **CSV UTF-8**.
 
 ## Profiles
+
+Tap the title at the top of the screen to switch profiles from a menu (or **Manage profiles…**).
 
 Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. Each profile is an independent data set (title, parameters, products, do-not-combine pairs, inputs and view settings); switching or changing one does not affect the others. **+ New**, **Rename**, **Duplicate** and **Delete** manage them. Data saved by earlier versions becomes the first profile.
 
@@ -130,14 +136,14 @@ In the product editor, each relevant parameter has **◆ Must match**. When that
 
 Match opens with the sections as they were last time (on first use, all three are expanded). Nothing opens or closes on its own. **Reset** (circular-arrow icon left of Settings) applies every parameter's default value and ranks the products with them. Before any input, products are shown gray (not relevant / no data).
 
-The icon at the right of each section title turns its **scroll pane** on (solid) or off (gray):
+The **Scroll on / Scroll off** button at the right of each section title turns its scroll pane on (filled) or off (dashed outline):
 
-- **On:** the section scrolls inside its own pane; panes without a set height share the rest of the screen. Result's pane fits its first segment (score, product and alternatives) when it can. Drag the bar under a pane to change its height (Input Parameters snaps to whole tiles); holding near the bottom edge lets the pane extend past the screen. Tap the lock on the bar to keep that height every time the section is expanded; unlocked adjustments last until the next expand or collapse. Each bar has its own lock.
+- **On:** the section scrolls inside its own pane; panes without a set height share the rest of the screen. Result shows two tiles: the top tile (score, product, alternatives) and, below it, the parameter inputs against that product; Result's pane opens to the height of the top tile. Drag the bar under a pane to change its height (Input Parameters snaps to whole tiles); holding near the bottom edge lets the pane extend past the screen. Tap **Unlocked** on the bar to lock that height (**Locked**, filled) so the section reopens at that height every time it is expanded (dragging is off while locked); unlocked adjustments last until the next expand or collapse. Each bar has its own lock.
 - **Off:** the section shows its full content and the page scrolls.
 
 ## Developer mode
 
-Hold the Settings icon for 2 seconds to turn developer mode on or off (the icon shakes and shows `</>`). While it is on, hold a parameter tile, a product row or the Result for ½ second: the editor opens at the matching field (for example a product chip opens that parameter's values). After **Save**, Match returns to the same position, and the edited value and any other changed values are highlighted.
+Hold the Settings icon for 2 seconds to turn developer mode on or off (the icon shakes and shows `</>`); it stays on between launches until turned off. While it is on, hold a parameter tile, a product row or the Result for ½ second: the editor opens at the matching field (for example a product chip opens that parameter's values). After **Save**, Match returns to the same position, and the edited value and any other changed values are highlighted.
 
 ## Product range checks
 
