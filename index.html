@@ -283,6 +283,20 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
 .chips.wrap .chip{max-width:100%}
 .chips.wrap .chip b{overflow-wrap:anywhere}
 [data-field]{cursor:pointer}
+/* brief highlight that fades out */
+@keyframes hlfade{0%,55%{box-shadow:0 0 0 2px var(--flag);background-color:color-mix(in srgb,var(--flag) 13%,var(--card))}}
+.hl{animation:shake .45s ease,hlfade 2.6s ease}
+@keyframes notefade{0%{opacity:0}8%,78%{opacity:1}100%{opacity:0}}
+.fbub.note{pointer-events:none;animation:notefade 3.3s ease forwards}
+/* in-app confirmation */
+.dlg{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .18s ease}
+.dlg.hidden{display:none}
+.dlg-card{background:var(--card);color:var(--ink);border-radius:16px;padding:18px 18px 14px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(0,0,0,.35);animation:dlgIn .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes dlgIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+.dlg-card b{font-size:17px}
+.dlg-card p{margin:8px 0 16px;font-size:15px;color:var(--muted);line-height:1.4}
+.dlg-acts{display:flex;gap:10px}.dlg-acts .btn{flex:1}
+.btn.dangerfill{background:var(--bad);border-color:var(--bad);color:#fff}
 .sec-h .btn,.sec-h .link{white-space:nowrap;flex:none}
 .sec-h h2{min-width:0}
 </style>
@@ -308,6 +322,10 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
   </div>
 </div>
 <input type="file" id="fileIn" accept=".csv,text/csv,text/plain" hidden>
+<div id="dlg" class="dlg hidden" role="alertdialog" aria-modal="true" aria-labelledby="dlgT">
+  <div class="dlg-card"><b id="dlgT"></b><p id="dlgM"></p>
+    <div class="dlg-acts"><button class="btn" id="dlgNo">Cancel</button><button class="btn primary" id="dlgOk">OK</button></div></div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -700,7 +718,7 @@ function refresh(keepId, snap){
 // After saving an editor: stay in place; scroll a new item into view.
 function afterSave(id, isNew){
   const el = refresh(id);
-  if (isNew && el) el.scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center'});
+  if (isNew && el) { el.scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center'}); animateIn(el); }
 }
 function moveItem(arr, i, dir, id){
   const j = i + dir;
@@ -797,6 +815,7 @@ function flag(el, detail, o = {}){
   host.appendChild(b);
   target.classList.add('flagged');
   const f = el._flag = {b, target, host, key: o.key, accept: o.accept};
+  target._flagEl = el;
   f.onFocus = () => { unflag(el); if (o.review) o.review(); };
   el.addEventListener('focusin', f.onFocus);
   el.addEventListener('pointerdown', f.onFocus);
@@ -821,6 +840,59 @@ function placeFlag(el){
   f.b.style.top = (er.bottom - hr.top + 8) + 'px';
   f.b.style.left = left + 'px';
   f.b.style.setProperty('--ax', Math.max(12, Math.min(bw - 12, cx - left)) + 'px');
+}
+// jQuery-style effects: a new item slides in and flashes; a removed item slides out and closes up.
+function animateIn(el){
+  if (!el) return;
+  el.scrollIntoView({block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth'});
+  if (!reduceMotion()) el.animate([{opacity: 0, transform: 'translateY(-10px) scale(.98)'}, {opacity: 1, transform: 'none'}], {duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)'});
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+function animateOut(el, done){
+  if (!el || reduceMotion()) return done();
+  const cs = getComputedStyle(el), h = el.offsetHeight;
+  el.style.overflow = 'hidden';
+  const a = el.animate([
+    {opacity: 1, transform: 'none', height: h + 'px', marginBottom: cs.marginBottom, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom},
+    {opacity: 0, transform: 'translateX(40px)', height: h + 'px', offset: .55},
+    {opacity: 0, transform: 'translateX(40px)', height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px'}], {duration: 380, easing: 'ease-in-out', fill: 'forwards'});
+  a.onfinish = done;
+}
+// In-app confirmation (same style for every delete and for saving with open prompts). Resolves true/false.
+function askConfirm({title, msg, ok = 'OK', danger = false}){
+  return new Promise(res => {
+    const d = $('#dlg');
+    $('#dlgT').textContent = title; $('#dlgM').textContent = msg;
+    const b = $('#dlgOk'); b.textContent = ok; b.className = 'btn ' + (danger ? 'dangerfill' : 'primary');
+    d.classList.remove('hidden');
+    const end = v => { d.classList.add('hidden'); $('#dlgOk').onclick = $('#dlgNo').onclick = d.onclick = null; res(v); };
+    $('#dlgOk').onclick = () => end(true); $('#dlgNo').onclick = () => end(false);
+    d.onclick = e => { if (e.target === d) end(false); };
+  });
+}
+// Brief highlight (shake, then fades out). With text, a comment shows beside the field and fades out too.
+function note(el, text, o = {}){
+  if (!el || !el.isConnected) return;
+  const target = o.target || el;
+  target.classList.remove('hl'); void target.offsetWidth; target.classList.add('hl');
+  clearTimeout(target._hl); target._hl = setTimeout(() => target.classList.remove('hl'), 2700);
+  if (!text) return;
+  const host = o.host || target.closest('.inp, .pfield, .vrow, .field') || target.parentElement;
+  host.classList.add('fhost', 'fhosting');
+  host.querySelectorAll('.fbub.note').forEach(x => x.remove());
+  const b = document.createElement('div');
+  b.className = 'fbub note'; b.innerHTML = esc(text);
+  host.appendChild(b);
+  el._flag = {b, host}; placeFlag(el); el._flag = null;
+  setTimeout(() => { b.remove(); if (!host.querySelector('.fbub')) host.classList.remove('fhosting'); }, 3300);
+}
+// Accept every open prompt in a container (value shown is kept).
+function acceptAll(root){
+  for (let n = 0; n < 4; n++) {
+    const pend = pendingFlags(root);
+    if (!pend.length) return;
+    pend.forEach(t => { const el = t._flagEl, f = el && el._flag; if (!f) { t.classList.remove('flagged'); return; } unflag(el); if (f.accept) f.accept(); });
+  }
 }
 // Fields still waiting for acknowledgement in the editor (visible ones only).
 const pendingFlags = root => [...root.querySelectorAll('.flagged')].filter(x => x.getClientRects().length);
@@ -939,16 +1011,17 @@ function commitValue(el){
   el._busy = true;
   const id = el.dataset.in, p = P(id), tile = el.closest('.inp'), text = el.value.trim();
   tile.classList.remove('editing');
-  let note = null;
+  let bad = null, rounded = null;
   if (text !== '' && num(text) == null) {
-    note = `"${text}" is not a number; ${S.inputs[id] == null ? 'no value was entered' : 'the previous value ' + fmt(S.inputs[id]) + ' is kept'}.`;
+    bad = `"${text}" is not a number; ${S.inputs[id] == null ? 'no value was entered' : 'the previous value ' + fmt(S.inputs[id]) + ' is kept'}.`;
   } else if (text !== '') {
     const raw = num(text), v = snap(p, raw, p.round);
     syncSlider(id, v); userInput(id, v);
-    if (v !== raw) note = `${fmt(raw)} → ${fmt(v)}${p.unit === '%' ? '%' : p.unit ? ' ' + p.unit : ''} (${ROUND[p.round].toLowerCase()} to the resolution ${resOf(p)}).`;
+    if (v !== raw) rounded = `Rounding applied: ${fmt(raw)} → ${fmt(v)}${p.unit === '%' ? '%' : p.unit ? ' ' + p.unit : ''} (${ROUND[p.round].toLowerCase()}, resolution ${resOf(p)}).`;
   }
   showValue(p);
-  if (note) flag(el, note, {target: tile, host: tile});
+  if (bad) flag(el, bad, {target: tile, host: tile});
+  else if (rounded) note(el, rounded, {target: tile, host: tile});
   el._busy = false;
 }
 // Size the value field to its text so the units sit right beside it.
@@ -1041,7 +1114,11 @@ function keepRow(){
 }
 function matchSectionToggled(key, open){
   const entered = (S.entered || []).length;
-  if (key === 'm-inputs' && open) S.inputsFull = false;      // opened by the person: two tiles at a time
+  // Input Parameters alone (everything else collapsed) shows every tile; with another section open
+  // it is a two-tile pane.
+  const others = () => !S.collapsed['m-result'] || !S.collapsed['m-list'];
+  if (key === 'm-inputs' && open) S.inputsFull = !others();
+  if (key === 'm-result' && open) S.inputsFull = false;
   if (key === 'm-list') {
     if (open) {
       S.inputsFull = false;
@@ -1050,6 +1127,7 @@ function matchSectionToggled(key, open){
       window.scrollTo({top: 0, behavior: reduceMotion() ? 'auto' : 'smooth'});
     } else if (entered) setSection('m-result', true);
   }
+  if (!open && key !== 'm-inputs' && !S.collapsed['m-inputs'] && !others()) S.inputsFull = true;
   save(); setTimeout(layoutMatch, 260);
 }
 // Tile: name and weight; description and units; value (tap to type) between the range ends; slider (lowest).
@@ -1201,12 +1279,18 @@ function renderParams(box, act){
       save(); return afterSave(c.id, true);
     }
     if (act === 'del') {
-      if (!confirm(`Delete "${S.parameters[i].name}"? Its values will be removed from all products.`)) return;
-      const snap = snapshot();
-      S.parameters.splice(i, 1);
-      S.products.forEach(pr => { delete pr.ranges[id]; delete pr.flags[id]; delete pr.rel[id]; });
-      delete S.inputs[id];
-      save(); refresh(null, snap);
+      const nm = S.parameters[i].name, np = S.products.length;
+      askConfirm({title: `Delete parameter "${nm}"?`, ok: 'Delete', danger: true,
+        msg: `Its values, weights and relevance will be removed from ${np} product${np === 1 ? '' : 's'}, and its Match input will be cleared. This cannot be undone; export a CSV first if a backup is needed.`}).then(ok => {
+        if (!ok) return;
+        animateOut(view.querySelector(`[data-card="${id}"]`), () => {
+          const k = S.parameters.findIndex(p => p.id === id); if (k < 0) return;
+          S.parameters.splice(k, 1);
+          S.products.forEach(pr => { delete pr.ranges[id]; delete pr.flags[id]; delete pr.rel[id]; });
+          delete S.inputs[id]; S.entered = (S.entered || []).filter(x => x !== id);
+          save(); refresh(null, snapshot());
+        });
+      });
     }
   };
 }
@@ -1217,7 +1301,7 @@ function focusField(sel){
     if (!el || !el.getClientRects().length) return;
     const d = el.closest('details'); if (d) d.open = true;
     el.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'});
-    setTimeout(() => flag(el, 'Opened from the list view.', {head: 'Review value before proceeding.'}), reduceMotion() ? 0 : 380);
+    setTimeout(() => note(el), reduceMotion() ? 0 : 380);
   }, reduceMotion() ? 0 : 300);
 }
 function editParam(id, field){
@@ -1373,18 +1457,20 @@ function editParam(id, field){
         if (a === 'up' && i > 0) [vals[i - 1], vals[i]] = [vals[i], vals[i - 1]];
         if (a === 'down' && i < vals.length - 1) [vals[i + 1], vals[i]] = [vals[i], vals[i + 1]];
         if (a === 'dup') vals.splice(i + 1, 0, {id: uid('v'), t: mode() === 'num' ? vals[i].t : vals[i].t + ' (copy)'});
-        if (a === 'del') vals.splice(i, 1);
+        if (a === 'del') {   // the row slides out, then the list closes up
+          const row = document.querySelector(`[data-vrow="${i}"]`);
+          return animateOut(row, () => { vals.splice(i, 1); drawVals(); });
+        }
         drawVals();
-        const focus = a === 'dup' ? i + 1 : a === 'up' ? i - 1 : a === 'down' ? i + 1 : null;
-        if (focus != null) { const r = document.querySelector(`[data-vrow="${focus}"]`); if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); } }
-        if (a === 'dup' && mode() === 'num') { const inp = document.querySelector(`[data-vin="${i + 1}"]`); if (inp) { inp.focus(); inp.select(); } }
+        const r = document.querySelector(`[data-vrow="${a === 'dup' ? i + 1 : a === 'up' ? i - 1 : i + 1}"]`);
+        if (a === 'dup') animateIn(r); else if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); }
       };
       $('#valList').oninput = e => { const i = e.target.dataset.vin; if (i != null) { vals[Number(i)].t = e.target.value; refreshListUI(); } };
       $('#addVal').onclick = () => {
         const nv = vals.map(v => num(v.t)).filter(x => x != null);
         vals.push({id: uid('v'), t: mode() === 'num' && nv.length ? String(Math.max(...nv) + 1) : ''});
         drawVals();
-        const inp = document.querySelector(`[data-vin="${vals.length - 1}"]`); if (inp) { inp.focus(); inp.select(); }
+        animateIn(document.querySelector(`[data-vrow="${vals.length - 1}"]`));   // no focus: the keyboard stays closed
       };
       // Switches the numbering used for scoring without moving the values (the slider follows the list order).
       $('#dirBtn').onclick = () => { dir = dir === 'desc' ? 'asc' : 'desc'; drawVals(); };
@@ -1552,8 +1638,16 @@ function renderProducts(box, act){
       S.products.splice(i + 1, 0, c); save(); return afterSave(c.id, true);
     }
     if (act === 'del') {
-      if (!confirm(`Delete "${S.products[i].name}"?`)) return;
-      const snap = snapshot(); S.products.splice(i, 1); save(); refresh(null, snap);
+      const nm = S.products[i].name, np = S.parameters.length;
+      askConfirm({title: `Delete product "${nm}"?`, ok: 'Delete', danger: true,
+        msg: `Its values, weights and relevance for ${np} parameter${np === 1 ? '' : 's'}, its link and its description will be removed. This cannot be undone; export a CSV first if a backup is needed.`}).then(ok => {
+        if (!ok) return;
+        animateOut(view.querySelector(`[data-card="${id}"]`), () => {
+          const k = S.products.findIndex(p => p.id === id); if (k < 0) return;
+          S.products.splice(k, 1); if (S.selectedId === id) S.selectedId = null;
+          save(); refresh(null, snapshot());
+        });
+      });
     }
   };
 }
@@ -1916,14 +2010,16 @@ function openSheet(title, html, onSave, onMount){
 }
 function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; }
 $('#sheetCancel').onclick = closeSheet;
-$('#sheetSave').onclick = () => {
-  // Highlighted fields must be reviewed (select the field) or accepted (select its comment) first.
+$('#sheetSave').onclick = async () => {
+  // Highlighted fields: save only after confirming that the values shown are accepted.
   const pend = pendingFlags($('#sheetBody'));
   if (pend.length) {
-    $('#fErr').textContent = `Review ${pend.length} highlighted field${pend.length > 1 ? 's' : ''} before saving: select the field to review it, or its comment to accept the value shown.`;
     pend[0].scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'});
     attention(pend[0]);
-    return;
+    const ok = await askConfirm({title: 'Accept highlighted values?', ok: 'Accept and save',
+      msg: `${pend.length} highlighted field${pend.length > 1 ? 's have' : ' has'} not been reviewed. Accept the value${pend.length > 1 ? 's' : ''} shown, clear the prompt${pend.length > 1 ? 's' : ''} and save?`});
+    if (!ok) return;
+    acceptAll($('#sheetBody'));
   }
   const err = sheetSave && sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else closeSheet();
 };
