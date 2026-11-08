@@ -7,7 +7,7 @@ Length,Number,cm,0,30,0.1,0.5,,,,,Yes,Nearest,5,8,Measured to the nearest 0.1 cm
 Coverage,%,%,0,100,1,25,,,,,Yes,Nearest,50,6,"Resolution 1%, slider step 25%.",
 Exudate level,Text,,,,,,None; Light; Moderate; Heavy,Ascending,Range,,Yes,,Moderate,4,"Listed values, numbered by position (None = 1 … Heavy = 4).",
 Option Required,Y/N,,,,,,,,,,,,No,9,Yes or No.,
-Changes per week,Number,per week,,,Variable,,1; 2; 3; 5; 7,Ascending,,,Yes,,3,3,"Listed numbers, numbered by position.",
+Changes per week,Number,per week,,,Variable,,1; 2; 3; 5; 7,Ascending,Range,,Yes,,3,3,"Listed numbers, numbered by position.",
 
 [PRODUCTS]
 Product,Description,Link,Do Not Combine,Combination Note,Length Lower,Length Upper,Length Weight,Coverage Lower,Coverage Upper,Coverage Weight,Exudate level Lower,Exudate level Upper,Exudate level Weight,Option Required Value,Option Required Weight,Changes per week Lower,Changes per week Upper,Changes per week Weight

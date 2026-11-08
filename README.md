@@ -27,7 +27,7 @@ Public repository note: the app **code** is publicly viewable. Your parameters, 
 - **Settings** (top right) holds **Parameters**, **Products** and **Data**. One section is open at a time; tap a heading to open or close it. **Done** returns to Match.
 - Chip rows on product cards scroll together, so each parameter stays in one column; parameter card chips wrap. ▲ ▼ and Duplicate / Delete are aligned to the top of each card.
 - Tapping a card's title, description or a chip opens the editor at that field, brought into view with a brief highlight that fades out.
-- **Description detail** (button beside the heading, cycles **Normal** – full text, **Advanced** – two lines, **Expert** – hidden). Parameters share one setting between Match ▸ Input Parameters and Settings ▸ Parameters; Products share one between Match ▸ All Products and Settings ▸ Products; Result has its own.
+- **Description and reasoning icons:** tiles and cards show titles only. The ⓘ icon beside a title opens the description, and the graduation-cap icon opens the reasoning, in a pop-up that closes when tapped outside or acknowledged.
 
 All changes, inputs and weights are saved automatically on the device.
 
@@ -117,7 +117,15 @@ In the product editor, each relevant parameter has **◆ Must match**. When that
 
 ## Reasoning, multi-selection, one-sided values and hard limits
 
-- **Reasoning** (parameter editor, CSV column `Reasoning`): why the parameter matters, kept separate from the description. Shown under the description in Normal mode; hidden in Advanced and Expert. Description and reasoning boxes grow to show their full text.
+- **Reasoning** (parameter editor, CSV column `Reasoning`): why the parameter matters, kept separate from the description. Opened from the graduation-cap icon beside the parameter's title. Description and reasoning boxes grow to show their full text.
 - **Multi-selection** (Text parameters, CSV `Selection` = Multi, `Max Selections`): each product accepts any set of the listed values (CSV product column `<Parameter> Values`, separated by semicolons), and several values can be selected on Match, up to the maximum. A product scores by the share of selected values it accepts; with Must match, every selected value must be accepted.
 - **One-sided product values:** leave Lower or Upper blank. Lower only = at or above it (shown "≥ x"); upper only = at or below it ("≤ x").
 - **Hard limit** (Number and %, CSV `<Parameter> Hard Min` / `Hard Max`): an absolute product limit, separate from the preferred range; an input beyond it marks the product Not suitable and is noted in the Result.
+
+## Match panes
+
+Match opens with Input Parameters, Result and All Products collapsed; nothing opens or closes on its own. Each expanded section scrolls inside its own pane, and together the panes fill the screen, split by how many are expanded. Drag the bar under a pane to change the split; tap 🔓 on a bar to lock the split (🔒), so the panes return to that position each time a section is expanded or collapsed. Tap 🔒 to unlock.
+
+## Product range checks
+
+In the product editor, each Number or % parameter checks the range against its hard limit and the allowable range. Blocking (Save is held and the parameter is outlined): lower above upper, hard minimum above hard maximum, a range extending beyond the hard limit. Advisory: a hard limit at or outside the allowable range (no effect, or every input not suitable), or a hard limit with no range. Hard limits are rounded to the resolution when left. The same checks appear in Data ▸ Review. Multi-selection is also available for Number parameters with listed values.
