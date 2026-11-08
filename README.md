@@ -114,3 +114,10 @@ In the product editor, **⚠ Do not combine with** lists the other products; tap
 ## Must match
 
 In the product editor, each relevant parameter has **◆ Must match**. When that parameter has an input outside the product's values, the product is marked **✕ Not suitable**: it is listed after all suitable products (striped, with the parameter named), it is never shown as the best match while a suitable product exists, and it is left out of the alternatives. Its score is still shown for reference. CSV product column: `<Parameter> Must Match` (Yes / blank); the column is written only for parameters that use it.
+
+## Reasoning, multi-selection, one-sided values and hard limits
+
+- **Reasoning** (parameter editor, CSV column `Reasoning`): why the parameter matters, kept separate from the description. Shown under the description in Normal mode; hidden in Advanced and Expert. Description and reasoning boxes grow to show their full text.
+- **Multi-selection** (Text parameters, CSV `Selection` = Multi, `Max Selections`): each product accepts any set of the listed values (CSV product column `<Parameter> Values`, separated by semicolons), and several values can be selected on Match, up to the maximum. A product scores by the share of selected values it accepts; with Must match, every selected value must be accepted.
+- **One-sided product values:** leave Lower or Upper blank. Lower only = at or above it (shown "≥ x"); upper only = at or below it ("≤ x").
+- **Hard limit** (Number and %, CSV `<Parameter> Hard Min` / `Hard Max`): an absolute product limit, separate from the preferred range; an input beyond it marks the product Not suitable and is noted in the Result.

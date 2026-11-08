@@ -318,6 +318,14 @@ body[data-dm-params="expert"] .d-params,body[data-dm-products="expert"] .d-produ
 .pfield label.mustcb,.mustcb{display:flex;align-items:flex-start;gap:8px;width:auto}
 .mustcb input[type=checkbox]{width:20px;height:20px;min-height:0;margin:0;padding:0;flex:none;accent-color:var(--accent)}
 .mustcb>span{flex:1;min-width:0;text-align:left}
+textarea.grow{overflow:hidden;resize:none;min-height:64px}
+body[data-dm-params="advanced"] .d-params.d-reason,body[data-dm-products="advanced"] .d-products.d-reason{display:none}
+.d-reason b{font-weight:700}
+.mchip.on{background:color-mix(in srgb,var(--accent) 14%,var(--card));border-color:var(--accent);color:var(--accent);font-weight:700}
+.vstrip.mwrap{flex-wrap:wrap;overflow:visible}
+.mhint{margin:2px 0 6px}
+.hardrow{margin-top:10px}.hardrow .pair{margin-top:4px}
+.ntxt{color:var(--bad);font-weight:600;margin-top:3px}
 .dlg-card input{width:100%}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pgrid .btn{white-space:nowrap}
 .btn.dangerfill{background:var(--bad);border-color:var(--bad);color:#fff}
@@ -416,7 +424,7 @@ function switchProfile(id, sec = 'data'){
   S.tab = 'settings'; applyDM(); openSettings(sec);
   toast('Profile: ' + profName());
 }
-let S = load();
+let S = blank();   // replaced by the stored profile at START, once every helper is defined
 
 function blank(){ return {title: 'Product Match', parameters: [], products: [], inputs: {}, tab: null, selectedId: null, lastExport: null}; }
 function fix(s){
@@ -444,7 +452,17 @@ function fix(s){
     if (p.dir !== 'desc') p.dir = 'asc';
     p.vals = Array.isArray(p.vals) ? p.vals : [];
   });
-  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; pr.must = pr.must || {}; if (pr.link == null) pr.link = ''; });
+  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; pr.must = pr.must || {}; pr.sets = pr.sets || {}; pr.hard = pr.hard || {}; if (pr.link == null) pr.link = ''; });
+  s.parameters.forEach(p => {
+    if (!p.reason) {   // reasoning previously kept at the end of the description
+      const d = p.details || '', k = d.indexOf('Reasoning:');
+      if (k >= 0) { p.reason = d.slice(k + 10).trim(); p.details = d.slice(0, k).trim(); } else p.reason = p.reason || '';
+    }
+    if (p.type !== 'text') p.multi = false;
+    if (!(p.maxSel >= 1)) p.maxSel = null;
+  });
+  s.inputs = s.inputs || {};
+  syncSets(s);
   // Do-not-combine pairs: kept symmetric, limited to existing products.
   const ids = new Set(s.products.map(pr => pr.id));
   s.products.forEach(pr => { pr.avoid = [...new Set((Array.isArray(pr.avoid) ? pr.avoid : []).filter(x => ids.has(x) && x !== pr.id))]; if (pr.avoidNote == null) pr.avoidNote = ''; });
@@ -466,11 +484,17 @@ function fix(s){
   delete s.ready;
   return s;
 }
+// readOnly: the stored profile could not be read; saving is suspended so it is never overwritten.
+let readOnly = false;
 function load(){
-  try { const s = JSON.parse(localStorage.getItem(DKEY(PM.active))); if (s && s.parameters) return fix(s); } catch (e) {}
+  readOnly = false;
+  let raw = null;
+  try { raw = localStorage.getItem(DKEY(PM.active)); const s = JSON.parse(raw); if (s && s.parameters) return fix(s); }
+  catch (e) { if (raw) { readOnly = true; console.error(e); } }
   return blank();
 }
 function save(){
+  if (readOnly) return;
   try { localStorage.setItem(DKEY(PM.active), JSON.stringify(S)); }
   catch (e) { toast('Unable to save on this device. Export a CSV backup.'); }
 }
@@ -488,6 +512,39 @@ const isNumVar = p => p.type === 'number' && p.res === 'var';
 const isVar = p => p.type === 'text' || isNumVar(p);
 const numList = () => [];
 const isList = isVar;
+// Multi-selection (Text): products accept any set of listed values; Match can select several.
+const isMulti = p => p.type === 'text' && !!p.multi;
+const hardOK = p => p.type === 'percent' || (p.type === 'number' && !isNumVar(p));   // hard limits: numeric parameters
+// A product has a value for the parameter (one-sided ranges count).
+const hasProdVal = (pr, p) => isBool(p) ? !!pr.flags[p.id] : isMulti(p) ? !!(pr.sets && (pr.sets[p.id] || []).length) : !!rng(pr, p);
+// Hard limit text, e.g. "limit ≤ 50 cm²".
+function hardText(pr, p){
+  const h = pr.hard && pr.hard[p.id]; if (!h || !hardOK(p)) return '';
+  const u = p.unit === '%' ? '%' : p.unit ? ' ' + p.unit : '';
+  return h[0] != null && h[1] != null ? `limit ${fmt(h[0])}–${fmt(h[1])}${u}` : h[1] != null ? `limit ≤ ${fmt(h[1])}${u}` : `limit ≥ ${fmt(h[0])}${u}`;
+}
+// Keep products and inputs consistent with each parameter's selection mode.
+function syncSets(s){
+  s.parameters.forEach(p => {
+    if (p.type !== 'text') return;
+    const L = varList(p), ix = id => L.findIndex(v => v.id === id);
+    s.products.forEach(pr => {
+      pr.sets = pr.sets || {};
+      const set = (pr.sets[p.id] || []).filter(id => ix(id) >= 0), r = pr.ranges[p.id];
+      if (p.multi && !set.length && r && (r[0] != null || r[1] != null)) {
+        const a = r[0] != null ? ix(r[0]) : 0, b = r[1] != null ? ix(r[1]) : L.length - 1;
+        if (a >= 0 && b >= 0) pr.sets[p.id] = L.slice(Math.min(a, b), Math.max(a, b) + 1).map(v => v.id);
+      } else if (!p.multi && set.length && !(r && (r[0] != null || r[1] != null))) {
+        const xs = set.map(ix).sort((m, k) => m - k);
+        pr.ranges[p.id] = [L[xs[0]].id, L[xs[xs.length - 1]].id];
+      } else pr.sets[p.id] = set;
+    });
+    const v = s.inputs && s.inputs[p.id];
+    if (p.multi && v != null && !Array.isArray(v)) s.inputs[p.id] = ix(v) >= 0 ? [v] : [];
+    if (!p.multi && Array.isArray(v)) { if (v.length && ix(v[0]) >= 0) s.inputs[p.id] = v[0]; else delete s.inputs[p.id]; }
+    if (p.multi && Array.isArray(s.inputs && s.inputs[p.id])) s.inputs[p.id] = s.inputs[p.id].filter(id => ix(id) >= 0);
+  });
+}
 // Position of a value in the list slider (-1 when not set).
 function listIndex(p, v){
   if (v == null) return -1;
@@ -522,14 +579,16 @@ function varSpan(p, x, y){
   return a === b ? labOfNum(p, x) : `${L[a] ? L[a].t : '?'} – ${L[b] ? L[b].t : '?'}`;
 }
 // Numeric value of the current design input (variable inputs hold a label id).
-const inVal = p => isVar(p) ? vnum(p, S.inputs[p.id]) : S.inputs[p.id];
+const inVal = p => isMulti(p) ? ((S.inputs[p.id] || []).length ? S.inputs[p.id] : null) : isVar(p) ? vnum(p, S.inputs[p.id]) : S.inputs[p.id];
 // Display text for a product's range on a parameter.
 function rangeText(pr, p){
   if (isBool(p)) return pr.flags[p.id] ? BL[pr.flags[p.id]] : '—';
-  const r = rng(pr, p);
-  if (!r) return '—';
-  if (isVar(p)) return varSpan(p, r[0], r[1]);
-  return fmt(r[0]) + '–' + fmt(r[1]);
+  if (isMulti(p)) { const t = ((pr.sets || {})[p.id] || []).map(id => vlabel(p, id)).filter(Boolean); return t.length ? t.join(', ') : '—'; }
+  const r = rng(pr, p), ht = hardText(pr, p);
+  if (!r) return ht ? '— · ' + ht : '—';
+  const lab = x => isVar(p) ? labOfNum(p, x) : fmt(x);
+  const t = !isFinite(r[0]) ? '≤ ' + lab(r[1]) : !isFinite(r[1]) ? '≥ ' + lab(r[0]) : isVar(p) ? varSpan(p, r[0], r[1]) : fmt(r[0]) + '–' + fmt(r[1]);
+  return ht ? t + ' · ' + ht : t;
 }
 // Resolution of typed and product values: % 1 / 0.1 / 0.01; Number 1 / 0.1 / 0.01.
 function resOf(p){
@@ -643,13 +702,16 @@ function wOf(pr, p){ const r = relOf(pr, p); return r.on ? r.w : 0; }
 // Overall = weighted average using each product's weights (0 / not relevant = excluded).
 function rng(pr, p){
   let r = pr.ranges[p.id];
+  if (isMulti(p)) return null;
   if (r && isVar(p)) r = [vnum(p, r[0]), vnum(p, r[1])];
-  if (!r || r[0] == null || r[1] == null) return null;
-  return [Math.min(r[0], r[1]), Math.max(r[0], r[1])];
+  if (!r || (r[0] == null && r[1] == null)) return null;
+  // Lower value only = at or above it; upper value only = at or below it.
+  const a = r[0] ?? -Infinity, b = r[1] ?? Infinity;
+  return [Math.min(a, b), Math.max(a, b)];
 }
 function productExtent(p){
   let lo = Infinity, hi = -Infinity;
-  S.products.forEach(pr => { if (wOf(pr, p) <= 0) return; const r = rng(pr, p); if (r) { lo = Math.min(lo, r[0]); hi = Math.max(hi, r[1]); } });
+  S.products.forEach(pr => { if (wOf(pr, p) <= 0) return; const r = rng(pr, p); if (r) { [r[0], r[1]].forEach(x => { if (isFinite(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); } }); } });
   return lo === Infinity ? null : [lo, hi];
 }
 // Range shown beside the input and used by the slider.
@@ -694,6 +756,11 @@ function rank(){
       if (isBool(p)) {
         r = pr.flags[p.id] || null;
         if (r) { if (r === 'either' || r === v) { s = 100; st = 'within'; } else st = 'far'; }
+      } else if (isMulti(p)) {
+        // Share of the selected values that the product accepts.
+        r = ((pr.sets || {})[p.id] || []);
+        if (r.length) { const m = v.filter(x => r.includes(x)).length; s = 100 * m / v.length; st = m === v.length ? 'within' : m ? 'near' : 'far'; d = m; }
+        else r = null;
       } else {
         r = rng(pr, p);
         if (r) {
@@ -704,7 +771,11 @@ function rank(){
       if (w > 0) { ws += w; ss += w * s; n++; if (st === 'within') within++; }
       const must = !!(pr.must && pr.must[p.id]) && w > 0;
       if (must && st !== 'within') fails.push(p.name);   // must-match parameter not met: product not suitable
-      fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0), must};
+      // Hard limit: an input beyond the product's absolute limit makes it not suitable.
+      const h = hardOK(p) && pr.hard && pr.hard[p.id];
+      const over = !!h && ((h[0] != null && v < h[0]) || (h[1] != null && v > h[1]));
+      if (over) fails.push(p.name + ' (limit)');
+      fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0), must, over, ht: hardText(pr, p)};
     });
     return {pr, score: ws ? ss / ws : 0, pts: ss / 100, tot: ws, within, n, fits, fails, unsuit: fails.length > 0};
   });
@@ -734,9 +805,10 @@ function issues(){
       if (!pr.flags[p.id]) out.push(`${pr.name}: no Yes/No value for ${p.name}; this parameter scores 0% for this product.`);
       return;
     }
+    if (isMulti(p)) { if (!hasProdVal(pr, p)) out.push(`${pr.name}: no values selected for ${p.name}; this parameter scores 0% for this product.`); return; }
     const raw = pr.ranges[p.id] || [null, null];
-    if (raw[0] == null || raw[1] == null) { out.push(`${pr.name}: no complete range for ${p.name}; this parameter scores 0% for this product.`); return; }
-    if (!isVar(p) && raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
+    if (raw[0] == null && raw[1] == null) { out.push(`${pr.name}: no value for ${p.name}; this parameter scores 0% for this product.`); return; }
+    if (!isVar(p) && raw[0] != null && raw[1] != null && raw[0] > raw[1]) out.push(`${pr.name}: ${p.name} lower value exceeds upper value.`);
     const r = rng(pr, p);
     if (!conforms(p, raw[0]) || !conforms(p, raw[1])) out.push(`${pr.name}: ${p.name} ${rangeText(pr, p)} does not match the parameter (${ruleText(p).toLowerCase()}).`);
   }));
@@ -1003,13 +1075,14 @@ function renderSettings(){
 // Shared list card used by the Parameters and Products tabs.
 // kind: 'params' or 'products' (description detail). Tapping the title, description or a chip opens
 // the editor at that field.
-function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = '', kind = 'params'){
+function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = '', kind = 'params', reason = ''){
   return `<div class="card lcard ${cls}" data-card="${id}">
     <div class="mv"><button data-act="up" data-id="${id}" ${i ? '' : 'disabled'} aria-label="Move up">▲</button><button data-act="down" data-id="${id}" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">▼</button></div>
     <div class="lbody" data-act="edit" data-id="${id}">
       <b class="ltitle" data-field="name">${esc(title)}</b>
       ${meta ? `<div class="xsmall ${metaWarn ? 'warn-text' : 'muted'}">${meta}</div>` : ''}
       ${desc ? `<div class="small muted dtext d-${kind}" data-field="desc">${esc(desc)}</div>` : ''}
+      ${reason ? `<div class="small muted dtext d-${kind} d-reason" data-field="reason"><b>Reasoning:</b> ${esc(reason)}</div>` : ''}
       <div class="chips ${kind === 'params' ? 'wrap' : 'sync'}">${chips}</div>
     </div>
     <div class="acts"><button data-act="dup" data-id="${id}">Duplicate</button><button class="danger" data-act="del" data-id="${id}">Delete</button></div>
@@ -1048,6 +1121,15 @@ function renderMatch(){
     const p = P(b.dataset.vp), v = sliderSpec(p).items[Number(b.dataset.vi)].v;
     syncSlider(p.id, v); userInput(p.id, v);
   });
+  // Multi-selection: tap to add or remove a value; the maximum is enforced with a note.
+  view.querySelectorAll('[data-mp]').forEach(b => b.onclick = () => {
+    const p = P(b.dataset.mp), id = b.dataset.mv, cur = Array.isArray(S.inputs[p.id]) ? [...S.inputs[p.id]] : [];
+    const k = cur.indexOf(id);
+    if (k >= 0) cur.splice(k, 1);
+    else if (p.maxSel && cur.length >= p.maxSel) { note(b, `Maximum of ${p.maxSel} selection${p.maxSel > 1 ? 's' : ''} – deselect a value first.`, {host: b.closest('.inp')}); return; }
+    else cur.push(id);
+    userInput(p.id, cur.length ? cur : null);
+  });
   // Yes / No radio buttons (tap the selected one again to clear it)
   view.querySelectorAll('[data-yn]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.yn;
@@ -1063,7 +1145,7 @@ function renderMatch(){
   }));
   // Reset: defaults are placed, but no result is shown until a parameter is entered.
   $('#resetIn').onclick = () => {
-    S.inputs = {}; S.parameters.forEach(p => { if (p.def != null) S.inputs[p.id] = p.def; });
+    S.inputs = {}; S.parameters.forEach(p => { if (p.def != null) S.inputs[p.id] = isMulti(p) ? [p.def] : p.def; });
     S.selectedId = null; S.entered = [];
     S.collapsed['m-inputs'] = false; S.collapsed['m-list'] = true; S.collapsed['m-result'] = true;
     S.inputsFull = true;   // Reset is the only action that shows every parameter at once
@@ -1142,6 +1224,12 @@ function syncSlider(id, v){
 function showVar(p, v, smooth){
   const strip = view.querySelector(`[data-strip="${p.id}"]`);
   if (!strip) return;
+  if (isMulti(p)) {
+    const sel = Array.isArray(v) ? v : [];
+    strip.querySelectorAll('[data-mv]').forEach(c => c.classList.toggle('on', sel.includes(c.dataset.mv)));
+    const c = view.querySelector(`[data-mcount="${p.id}"]`); if (c) c.textContent = sel.length + ' selected';
+    return;
+  }
   const idx = listIndex(p, v);
   strip.querySelectorAll('.vchip').forEach((c, i) => c.classList.toggle('on', i === idx));
   const c = strip.children[idx];
@@ -1211,7 +1299,8 @@ function matchSectionToggled(key, open){
 function inputCard(p){
   const v = S.inputs[p.id];
   const top = `<div class="top"><b>${esc(p.name)}</b><span class="spacer"></span><span class="xsmall wt">Weight: ${p.weight}</span></div>`;
-  const desc = p.details ? `<div class="xsmall muted dtext d-params desc">${esc(p.details)}</div>` : '';
+  const desc = (p.details ? `<div class="xsmall muted dtext d-params desc">${esc(p.details)}</div>` : '')
+    + (p.reason ? `<div class="xsmall muted dtext d-params d-reason"><b>Reasoning:</b> ${esc(p.reason)}</div>` : '');
   const u = p.unit ? `<span class="unit">${p.unit === '%' ? '%' : ' ' + esc(p.unit)}</span>` : '';
   const pending = !(S.entered || []).includes(p.id);
   if (isBool(p)) {
@@ -1221,6 +1310,12 @@ function inputCard(p){
         <label class="rb ${v === 'no' ? 'on' : ''}"><input type="radio" name="yn-${p.id}" value="no" data-yn="${p.id}" ${v === 'no' ? 'checked' : ''}><span class="dot"></span>No</label>
       </div>
     </div>`;
+  }
+  if (isMulti(p)) {   // several values can be selected (up to the maximum)
+    const sel = Array.isArray(v) ? v : [];
+    return `<div class="card inp noslider ${pending ? 'pending' : ''}" data-tile="${p.id}">${top}${desc}
+      <div class="xsmall muted mhint">Select one or more${p.maxSel ? ` (up to ${p.maxSel})` : ''} · <span data-mcount="${p.id}">${sel.length} selected</span></div>
+      <div class="vstrip mwrap" data-strip="${p.id}">${varList(p).map(x => `<button class="vchip ${sel.includes(x.id) ? 'on' : ''}" data-mp="${p.id}" data-mv="${x.id}">${esc(x.t)}</button>`).join('')}</div></div>`;
   }
   const sp = sliderSpec(p), li = listIndex(p, v);
   const pos = sp.isVar ? (li < 0 ? Math.floor(sp.hi / 2) : li) : posIdx(sp, v);
@@ -1308,7 +1403,15 @@ function updateMatch(){
 }
 function fitRow(p, f){
   const st = f.excluded ? 'excluded' : f.st;
-  const wl = f.excluded ? 'Not relevant' : `Weight: ${f.w}`;
+  const wl = (f.excluded ? 'Not relevant' : `Weight: ${f.w}`) + (f.ht ? ' · ' + f.ht : '');
+  const lim = f.over ? `<div class="xsmall ntxt">✕ Input is beyond this product's ${esc(f.ht)}.</div>` : '';
+  if (isMulti(p)) {
+    const lab = a => (a || []).map(id => vlabel(p, id)).filter(Boolean).join(', ');
+    const txt = f.excluded ? 'Not relevant' : f.st === 'missing' ? 'No data' : f.st === 'within' ? 'All match' : `${f.d} of ${f.v.length} match`;
+    return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
+      <span class="xsmall muted">Input ${esc(lab(f.v))} · Product ${f.r ? esc(lab(f.r)) : '—'} · ${wl}</span>
+      <span class="st c-${st}">${txt}</span></div></div>`;
+  }
   if (isBool(p)) {
     const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Matches' : f.st === 'missing' ? 'No data' : 'Does not match';
     return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
@@ -1322,11 +1425,13 @@ function fitRow(p, f){
   if (hi <= lo) hi = lo + 1;
   const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
   const pos = x => ((x - lo) / (hi - lo) * 100).toFixed(2);
-  const band = f.r && !f.excluded ? `<div class="band" style="left:${pos(f.r[0])}%;width:${Math.max(pos(f.r[1]) - pos(f.r[0]), 1.5)}%"></div>` : '';
+  const cl = x => Math.max(lo, Math.min(hi, x));   // open-ended ranges run to the edge of the track
+  const band = f.r && !f.excluded ? `<div class="band" style="left:${pos(cl(f.r[0]))}%;width:${Math.max(pos(cl(f.r[1])) - pos(cl(f.r[0])), 1.5)}%"></div>` : '';
+  const rt = r => !isFinite(r[0]) ? '≤ ' + (isVar(p) ? labOfNum(p, r[1]) : fmt(r[1])) : !isFinite(r[1]) ? '≥ ' + (isVar(p) ? labOfNum(p, r[0]) : fmt(r[0])) : isVar(p) ? varSpan(p, r[0], r[1]) : fmt(r[0]) + '–' + fmt(r[1]);
   return `<div class="fit"><div class="row"><b class="small">${esc(p.name)}</b>
-    <span class="xsmall muted">${f.r && !f.excluded ? (isVar(p) ? esc(varSpan(p, f.r[0], f.r[1])) : fmt(f.r[0]) + '–' + fmt(f.r[1]) + ' ' + esc(p.unit)) + ' · ' : ''}${wl}</span>
+    <span class="xsmall muted">${f.r && !f.excluded ? esc(rt(f.r)) + (isVar(p) ? '' : ' ' + esc(p.unit)) + ' · ' : ''}${esc(wl)}</span>
     <span class="st c-${st}">${esc(txt)}</span></div>
-    <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div></div>`;
+    <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div>${lim}</div>`;
 }
 
 /* ======================= PARAMETERS TAB ======================= */
@@ -1336,8 +1441,9 @@ function renderParams(box, act){
       chip('Type', esc(TYPES[p.type].label.split(' ')[0]), '', 'type') +
       (isBool(p) ? chip('Values', 'Yes / No', '', 'type') : isVar(p) ? chip('Values', esc(varList(p).map(v => v.t).join(', ')) || '—', '', 'values') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`, '', 'allow')) +
       (isBool(p) ? '' : chip('Resolution', esc(resText(p)), '', isVar(p) ? 'values' : 'res')) +
+      (isMulti(p) ? chip('Selection', 'Multi' + (p.maxSel ? ` (max ${p.maxSel})` : ''), '', 'multi') : '') +
       chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : isVar(p) ? esc(vlabel(p, p.def) ?? '—') : fmt(p.def), '', 'def') +
-      chip('Weight', p.weight, '', 'weight'), '', 'params')).join('')
+      chip('Weight', p.weight, '', 'weight'), '', 'params', p.reason)).join('')
     : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
   act.innerHTML = '<button class="btn primary" id="addP">+ Add</button>';
   box.innerHTML = (
@@ -1417,6 +1523,9 @@ function editParam(id, field){
       <div class="pair" style="margin-bottom:8px"><button type="button" class="btn" id="addVal" style="flex:1">+ Add value</button><button type="button" class="btn" id="dirBtn" style="flex:1"></button></div>
       <div id="valList"></div>
       <label class="switch" id="byValWrap"><input type="checkbox" id="fByVal" ${p.byValue ? 'checked' : ''}><span class="sw"></span><span>Score by numeric size (off = by list position)</span></label>
+      <div id="multiWrap"><label class="switch"><input type="checkbox" id="fMulti" ${p.multi ? 'checked' : ''}><span class="sw"></span><span>Multi-selection</span></label>
+        <div class="xsmall muted" style="margin:5px 2px">On: each product accepts any set of these values (not only a continuous range), and several values can be selected on Match. A product scores by the share of selected values it accepts.</div>
+        <div class="rline" id="maxSelRow"><span class="small">Maximum selections on Match</span><input id="fMaxSel" type="number" min="1" step="1" inputmode="numeric" value="${plain(p.maxSel)}" placeholder="No limit" style="max-width:110px"></div></div>
       <div class="xsmall muted" style="margin:5px 2px" id="valsNote"></div></div>
     <div class="field" id="rangeWrap"><label id="rangeLabel">Allowable range (optional)</label>
       <div class="pair"><input id="fMin" type="number" value="${isList(p) ? '' : plain(p.min)}" placeholder="Minimum"><span>to</span><input id="fMax" type="number" value="${isList(p) ? '' : plain(p.max)}" placeholder="Maximum"></div>
@@ -1438,7 +1547,9 @@ function editParam(id, field){
       <input id="fW" type="range" min="0" max="10" step="1" value="${p.weight}">
       <div class="xsmall muted" style="margin:0 2px">0 = excluded · 5 = standard · 10 = critical. Can be changed per product.</div></div>
     ${enableList}
-    <div class="field"><label>Description</label><textarea id="fDesc" placeholder="Basis, test standard, or notes">${esc(p.details)}</textarea></div>
+    <div class="field"><label>Description</label><textarea id="fDesc" placeholder="What the parameter is and how it is measured">${esc(p.details)}</textarea></div>
+    <div class="field"><label>Reasoning</label><textarea id="fReason" placeholder="Why the parameter matters for selection, with its source">${esc(p.reason || '')}</textarea>
+      <div class="xsmall muted" style="margin:5px 2px">Shown under the description in Normal mode; hidden in Advanced and Expert.</div></div>
     <div id="fErr" class="small err-text"></div>`,
     async () => {
       const type = $('#fType').value, t = TYPES[type];
@@ -1475,7 +1586,7 @@ function editParam(id, field){
       // Changing between Y/N, Text and numeric types clears this parameter's product values and input.
       if (id && kindOf(p.type, p.res) !== kindOf(type, res)) {
         if (!(await askConfirm({title: 'Change parameter type?', ok: 'Change type', danger: true, msg: 'Changing between Number / %, Text and Y/N clears this parameter\'s product values and current input.'}))) return 'Type change cancelled.';
-        S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; });
+        S.products.forEach(pr => { delete pr.ranges[p.id]; delete pr.flags[p.id]; if (pr.sets) delete pr.sets[p.id]; if (pr.hard) delete pr.hard[p.id]; });
         delete S.inputs[p.id];
       }
       Object.assign(p, {name, type, unit: type === 'boolean' ? '' : (t.unit || $('#fUnit').value.trim()), min, max, def,
@@ -1485,7 +1596,9 @@ function editParam(id, field){
         slider: type === 'boolean' ? true : $('#fSlider').checked,
         stepAck: type === 'number' || type === 'percent' ? stepAck : null,
         byValue: numVar && $('#fByVal').checked,
-        weight: Number($('#fW').value), details: $('#fDesc').value.trim()});
+        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(),
+        multi: textList && $('#fMulti').checked, maxSel: textList && $('#fMulti').checked && num($('#fMaxSel').value) >= 1 ? Math.round(num($('#fMaxSel').value)) : null});
+      syncSets(S);
       // Keep references valid: deleted listed values are cleared; numbers move to the parameter's resolution.
       if (textList || numVar) {
         if (vIdx(p, S.inputs[p.id]) < 0) delete S.inputs[p.id];
@@ -1502,7 +1615,7 @@ function editParam(id, field){
         const cur = pr.rel[p.id];
         if (cb.checked) {
           pr.rel[p.id] = {on: true, w: cur && cur.on !== false && cur.w > 0 ? cur.w : p.weight};
-          if (isBool(p) ? !pr.flags[p.id] : !rng(pr, p)) missing++;
+          if (!hasProdVal(pr, p)) missing++;
         } else pr.rel[p.id] = {on: false, w: cur ? cur.w : null};
       });
       save(); afterSave(p.id, !id);
@@ -1624,8 +1737,11 @@ function editParam(id, field){
         show('#rangeWrap', type !== 'boolean');
         show('#valsWrap', list);
         show('#byValWrap', md === 'num');
-        show('#dirBtn', list && !byVal);
-        show('#sliderWrap', type !== 'boolean');
+        const multi = type === 'text' && $('#fMulti').checked;
+        show('#multiWrap', type === 'text');
+        show('#maxSelRow', multi);
+        show('#dirBtn', list && !byVal && !multi);
+        show('#sliderWrap', type !== 'boolean' && !multi);
         show('#roundWrap', type !== 'boolean' && !list);
         show('#defNumWrap', type !== 'boolean' && !list);
         show('#defVarWrap', list);
@@ -1671,7 +1787,7 @@ function editParam(id, field){
           checkStep();
         });
       });
-      ['#fType', '#fRound', '#fByVal'].forEach(s => $(s).onchange = apply);
+      ['#fType', '#fRound', '#fByVal', '#fMulti'].forEach(s => $(s).onchange = apply);
       apply(); drawVals();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
       if ($('#enAll')) {
@@ -1685,7 +1801,7 @@ function editParam(id, field){
       if (field) {
         const t = $('#fType').value, md = mode();
         focusField({name: '#fName', type: '#fType', values: '#valList', allow: '#rangeWrap .pair', res: '#fPrec',
-          def: t === 'boolean' ? '#fDefB' : md ? '#fDefV' : '#fDef', weight: '#fW', desc: '#fDesc'}[field] || '#fName');
+          def: t === 'boolean' ? '#fDefB' : md ? '#fDefV' : '#fDef', weight: '#fW', desc: '#fDesc', reason: '#fReason', multi: '#multiWrap'}[field] || '#fName');
       }
     });
 }
@@ -1699,7 +1815,7 @@ function renderProducts(box, act){
   const n = S.products.length;
   const cards = n ? S.products.map((pr, i) => {
       const relP = S.parameters.filter(p => wOf(pr, p) > 0);
-      const done = relP.filter(p => isBool(p) ? pr.flags[p.id] : rng(pr, p)).length, na = S.parameters.length - relP.length;
+      const done = relP.filter(p => hasProdVal(pr, p)).length, na = S.parameters.length - relP.length;
       const chips = S.parameters.map(p => {
         const rel = relOf(pr, p), on = rel.on && rel.w > 0;
         const val = on ? esc(rangeText(pr, p)) : 'N/A';
@@ -1746,7 +1862,7 @@ function normLink(t){
 }
 function editProduct(id, field){
   const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', link: '', ranges: {}, flags: {}, rel: {}};
-  const hasVal = p => isBool(p) ? !!pr.flags[p.id] : !!rng(pr, p);
+  const hasVal = p => hasProdVal(pr, p);
   const fields = S.parameters.map(p => {
     const rel = relOf(pr, p), [lim0, lim1] = limits(p);
     const mm = `${lim0 != null ? `min="${lim0}"` : ''} ${lim1 != null ? `max="${lim1}"` : ''}`;
@@ -1756,6 +1872,9 @@ function editProduct(id, field){
       body = `<select data-bv="${p.id}"><option value="">— Select —</option>
         <option value="yes" ${f === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${f === 'no' ? 'selected' : ''}>No</option>
         <option value="either" ${f === 'either' ? 'selected' : ''}>Either (Yes or No)</option></select>`;
+    } else if (isMulti(p)) {
+      const set = (pr.sets || {})[p.id] || [];
+      body = `<div class="xchips" data-ms="${p.id}">${varList(p).map(x => `<button type="button" class="xchip mchip ${set.includes(x.id) ? 'on' : ''}" data-msv="${x.id}" aria-pressed="${set.includes(x.id)}">${esc(x.t)}</button>`).join('')}</div>`;
     } else if (isVar(p)) {
       const r = pr.ranges[p.id] || [null, null];
       const opts = sel => '<option value="">—</option>' + varList(p).map(x => `<option value="${x.id}" ${sel === x.id ? 'selected' : ''}>${esc(x.t)}${p.unit ? ' ' + esc(p.unit) : ''}${byVal(p) ? '' : ` (${vnum(p, x.id)})`}</option>`).join('');
@@ -1766,7 +1885,10 @@ function editProduct(id, field){
       body = `<div class="pair"><select data-lo="${p.id}">${opts(r[0])}</select><span>to</span><select data-hi="${p.id}">${opts(r[1])}</select></div>`;
     } else {
       const r = pr.ranges[p.id] || [null, null], step = resOf(p) || 'any';
-      body = `<div class="pair"><input type="number" step="${step}" ${mm} data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="${step}" ${mm} data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>`;
+      const h = (pr.hard || {})[p.id] || [null, null];
+      body = `<div class="pair"><input type="number" step="${step}" ${mm} data-lo="${p.id}" value="${plain(r[0])}" placeholder="Lower"><span>to</span><input type="number" step="${step}" ${mm} data-hi="${p.id}" value="${plain(r[1])}" placeholder="Upper"></div>
+        <div class="hardrow"><span class="xsmall"><b>Hard limit</b> <span class="muted">(optional) – an input beyond it marks the product Not suitable</span></span>
+          <div class="pair"><input type="number" step="any" data-hlo="${p.id}" value="${plain(h[0])}" placeholder="Min"><span>to</span><input type="number" step="any" data-hhi="${p.id}" value="${plain(h[1])}" placeholder="Max"></div></div>`;
     }
     // Existing products open with complete parameters collapsed; new products open expanded.
     const collapsed = id && (!rel.on || hasVal(p));
@@ -1798,14 +1920,21 @@ function editProduct(id, field){
     () => {
       const name = $('#fName').value.trim();
       if (!name) return 'Enter a product name.';
-      const ranges = {}, flags = {}, rel = {}, must = {};
+      const ranges = {}, flags = {}, rel = {}, must = {}, sets = {}, hard = {};
       for (const p of S.parameters) {
+        if (isMulti(p)) sets[p.id] = [...document.querySelectorAll(`[data-ms="${p.id}"] .mchip.on`)].map(b => b.dataset.msv);
+        if (hardOK(p)) {
+          const a = num(document.querySelector(`[data-hlo="${p.id}"]`).value), b = num(document.querySelector(`[data-hhi="${p.id}"]`).value);
+          if (a != null && b != null && a > b) return `${p.name}: hard limit minimum exceeds maximum.`;
+          if (a != null || b != null) hard[p.id] = [a, b];
+        }
         if (document.querySelector(`[data-must="${p.id}"]`).checked) must[p.id] = true;
         const on = document.querySelector(`[data-rel="${p.id}"]`).checked;
         const w = num(document.querySelector(`[data-pw="${p.id}"]`).value);
         if (on && (w == null || w < 0 || w > 10)) return `Enter a weight from 0 to 10 for ${p.name}.`;
         rel[p.id] = {on, w: on ? w : (w == null ? p.weight : w)};
         if (isBool(p)) { const v = document.querySelector(`[data-bv="${p.id}"]`).value; if (v) flags[p.id] = v; }
+        else if (isMulti(p)) { const r0 = pr.ranges[p.id]; if (r0) ranges[p.id] = r0; }
         else {
           const rv = sel => { const v = document.querySelector(sel).value; return isVar(p) ? (v || null) : conformValue(p, num(v)); };
           const lo = rv(`[data-lo="${p.id}"]`), hi = rv(`[data-hi="${p.id}"]`);
@@ -1813,7 +1942,7 @@ function editProduct(id, field){
         }
       }
       const avoid = [...document.querySelectorAll('#avList .xchip.on')].map(b => b.dataset.av);
-      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, must, avoid, avoidNote: $('#fAvNote').value.trim()});
+      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, must, sets: Object.assign(pr.sets || {}, sets), hard, avoid, avoidNote: $('#fAvNote').value.trim()});
       if (!id) S.products.push(pr);
       S.products.forEach(o => { if (o === pr) return; const has = (o.avoid || []).includes(pr.id), want = avoid.includes(o.id);
         if (want && !has) (o.avoid = o.avoid || []).push(pr.id); if (!want && has) o.avoid = o.avoid.filter(x => x !== pr.id); });
@@ -1824,28 +1953,37 @@ function editProduct(id, field){
       const check = p => {
         const pf = q(`[data-pf="${p.id}"]`), on = q(`[data-rel="${p.id}"]`).checked;
         let empty, sum;
+        const u = p.unit ? ' ' + p.unit : '';
         if (isBool(p)) { const v = q(`[data-bv="${p.id}"]`).value; empty = !v; sum = v ? BL[v] : 'No value'; }
-        else if (isVar(p)) {
+        else if (isMulti(p)) {
+          const on = [...document.querySelectorAll(`[data-ms="${p.id}"] .mchip.on`)].map(b => b.textContent);
+          empty = !on.length; sum = empty ? 'No values' : on.join(', ');
+        } else if (isVar(p)) {
           const a = q(`[data-lo="${p.id}"]`).value, b = q(`[data-hi="${p.id}"]`).value;
-          empty = !(a && b); sum = empty ? 'No values' : varSpan(p, vnum(p, a), vnum(p, b));
+          empty = !(a || b); sum = empty ? 'No values' : a && b ? varSpan(p, vnum(p, a), vnum(p, b)) : a ? '≥ ' + vlabel(p, a) : '≤ ' + vlabel(p, b);
         } else {
           const lo = num(q(`[data-lo="${p.id}"]`).value), hi = num(q(`[data-hi="${p.id}"]`).value);
-          empty = !(lo != null && hi != null); sum = empty ? 'No values' : `${fmt(lo)} – ${fmt(hi)}${p.unit ? ' ' + p.unit : ''}`;
+          empty = lo == null && hi == null;
+          sum = empty ? 'No values' : lo != null && hi != null ? `${fmt(lo)} – ${fmt(hi)}${u}` : lo != null ? `≥ ${fmt(lo)}${u}` : `≤ ${fmt(hi)}${u}`;
+          if (hardOK(p)) { const ha = num(q(`[data-hlo="${p.id}"]`).value), hb = num(q(`[data-hhi="${p.id}"]`).value);
+            if (ha != null || hb != null) sum += ` · limit ${ha != null && hb != null ? fmt(ha) + '–' + fmt(hb) : hb != null ? '≤ ' + fmt(hb) : '≥ ' + fmt(ha)}${u}`; }
         }
         pf.classList.toggle('missing', on && empty);
         q(`[data-psum="${p.id}"]`).textContent = on ? sum : 'Not relevant';
         const w = q(`[data-pwarn="${p.id}"]`);
         if (isBool(p)) { w.textContent = ''; return; }
+        if (isMulti(p)) { w.textContent = 'Tap each value this product accepts (any combination).'; w.className = 'xsmall muted'; return; }
         if (isVar(p)) {
           const a = q(`[data-lo="${p.id}"]`).value, b = q(`[data-hi="${p.id}"]`).value;
-          w.textContent = !a !== !b ? 'Select both a lower and an upper value.' : 'Select from the listed values; the number in brackets is its position.';
-          w.className = 'xsmall ' + (!a !== !b ? 'warn-text' : 'muted'); return;
+          w.textContent = a && !b ? `Lower value only: accepts ${vlabel(p, a)} and every value numbered above it.` : b && !a ? `Upper value only: accepts ${vlabel(p, b)} and every value numbered below it.` : 'Select from the listed values; the number in brackets is its position. Leave one side blank for a lower-only or upper-only value.';
+          w.className = 'xsmall muted'; return;
         }
         const lo = num(q(`[data-lo="${p.id}"]`).value), hi = num(q(`[data-hi="${p.id}"]`).value);
         let m = '', warn = true;
-        if ((lo == null) !== (hi == null)) m = 'Enter both a lower and an upper value.';
-        else if (lo != null && lo > hi) m = 'Lower value exceeds upper value.';
-        else { m = ruleText(p) + '.'; warn = false; }
+        if (lo != null && hi != null && lo > hi) m = 'Lower value exceeds upper value.';
+        else if (lo != null && hi == null) { m = `Lower value only: any input at or above ${fmt(lo)}${u} is within range. ${ruleText(p)}.`; warn = false; }
+        else if (hi != null && lo == null) { m = `Upper value only: any input at or below ${fmt(hi)}${u} is within range. ${ruleText(p)}.`; warn = false; }
+        else { m = ruleText(p) + '. Leave one side blank for a lower-only or upper-only value.'; warn = false; }
         w.textContent = m; w.className = 'xsmall ' + (warn ? 'warn-text' : 'muted');
       };
       S.parameters.forEach(p => {
@@ -1864,6 +2002,8 @@ function editProduct(id, field){
         });
         const cb = q(`[data-rel="${p.id}"]`);
         if (isBool(p)) q(`[data-bv="${p.id}"]`).onchange = () => check(p);
+        document.querySelectorAll(`[data-hlo="${p.id}"],[data-hhi="${p.id}"]`).forEach(i => i.oninput = () => check(p));
+        document.querySelectorAll(`[data-ms="${p.id}"] .mchip`).forEach(b => b.onclick = () => { const on = !b.classList.contains('on'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); check(p); });
         cb.onchange = () => {
           const pf = q(`[data-pf="${p.id}"]`);
           pf.classList.toggle('off', !cb.checked);
@@ -1983,29 +2123,36 @@ function parseType(t, unit){
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(d = S){
   const rows = [['[SETTINGS]'], ['Title', d.title], [], ['[PARAMETERS]'],
-    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Slider', 'Rounding', 'Default', 'Weight', 'Description']];
+    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning']];
   d.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isList(p) ? '' : plain(p.min), isList(p) ? '' : plain(p.max),
     isBool(p) || p.type === 'text' ? '' : isNumVar(p) ? 'Variable' : plain(resOf(p)),
     p.type === 'percent' || (p.type === 'number' && !isNumVar(p)) ? plain(stepOf(p)) : '',
     isVar(p) ? varList(p).map(v => v.t).join('; ') : isNumVar(p) ? numList(p).join('; ') : '',
     isList(p) ? (byVal(p) ? 'By value' : p.dir === 'desc' ? 'Descending' : 'Ascending') : '',
+    p.type === 'text' ? (isMulti(p) ? 'Multi' : 'Range') : '', isMulti(p) ? plain(p.maxSel) : '',
     isBool(p) ? '' : (p.slider === false ? 'No' : 'Yes'),
     isBool(p) || isList(p) ? '' : ROUND[p.round],
-    p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details]));
+    p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details, p.reason || '']));
   rows.push([], ['[PRODUCTS]']);
   const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note'];
   const mustCol = p => d.products.some(pr => pr.must && pr.must[p.id]);
-  d.parameters.forEach(p => { if (isBool(p)) h.push(p.name + ' Value'); else h.push(p.name + ' Lower', p.name + ' Upper'); h.push(p.name + ' Weight'); if (mustCol(p)) h.push(p.name + ' Must Match'); });
+  const hardCol = p => hardOK(p) && d.products.some(pr => pr.hard && pr.hard[p.id]);
+  d.parameters.forEach(p => {
+    if (isBool(p)) h.push(p.name + ' Value'); else if (isMulti(p)) h.push(p.name + ' Values'); else h.push(p.name + ' Lower', p.name + ' Upper');
+    h.push(p.name + ' Weight'); if (mustCol(p)) h.push(p.name + ' Must Match'); if (hardCol(p)) h.push(p.name + ' Hard Min', p.name + ' Hard Max');
+  });
   rows.push(h);
   d.products.forEach(pr => {
     const r = [pr.name, pr.notes, pr.link || '', (pr.avoid || []).map(x => (d.products.find(q => q.id === x) || {}).name).filter(Boolean).join('; '), pr.avoidNote || ''];
     d.parameters.forEach(p => {
       if (isBool(p)) r.push(pr.flags[p.id] ? BL[pr.flags[p.id]] : '');
+      else if (isMulti(p)) r.push(((pr.sets || {})[p.id] || []).map(id => vlabel(p, id)).filter(Boolean).join('; '));
       else if (isVar(p)) { const v = pr.ranges[p.id] || [null, null]; r.push(vlabel(p, v[0]) ?? '', vlabel(p, v[1]) ?? ''); }
       else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
       r.push(plain(wOf(pr, p)));
       if (mustCol(p)) r.push(pr.must && pr.must[p.id] ? 'Yes' : '');
+      if (hardCol(p)) { const hh = (pr.hard || {})[p.id] || [null, null]; r.push(plain(hh[0]), plain(hh[1])); }
     });
     rows.push(r);
   });
@@ -2025,7 +2172,7 @@ function parseRows(t){
   return rows;
 }
 function splitBound(h){
-  const sfx = [[' must match', 'm'], [' must', 'm'], [' minimum', 0], [' maximum', 1], [' weight', 'w'], [' lower', 0], [' upper', 1], [' value', 'v'], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
+  const sfx = [[' hard min', 'hl'], [' hard max', 'hh'], [' must match', 'm'], [' must', 'm'], [' values', 's'], [' minimum', 0], [' maximum', 1], [' weight', 'w'], [' lower', 0], [' upper', 1], [' value', 'v'], [' min', 0], [' max', 1], [' low', 0], [' high', 1]];
   const l = h.toLowerCase();
   for (const [s, k] of sfx) if (l.endsWith(s)) { const b = h.slice(0, -s.length).trim(); if (b) return [b, k]; }
   return null;
@@ -2074,7 +2221,9 @@ function fromCSV(text){
         byValue: res === 'var' && String(col(['numbering', 'order']) ?? '').toLowerCase().includes('value'),
         slider: !/^(no|off|false|0)$/i.test(String(col(['slider']) ?? '').trim()),
         round: rr.includes('up') ? 'up' : rr.includes('down') ? 'down' : 'nearest',
-        weight: w, details: (col(['description', 'details']) || '').trim()});
+        weight: w, details: (col(['description', 'details']) || '').trim(), reason: (col(['reasoning', 'reason', 'rationale']) || '').trim(),
+        multi: type === 'text' && /^multi/i.test(String(col(['selection', 'selection mode']) ?? '').trim()),
+        maxSel: num(col(['max selections', 'maximum selections'])) >= 1 ? Math.round(num(col(['max selections', 'maximum selections']))) : null});
       const np = out.parameters.at(-1), dv = col(['default', 'default value']);
       np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : isVar(np) ? labId(np, dv) : conformValue(np, num(dv));
     }
@@ -2091,7 +2240,7 @@ function fromCSV(text){
           else { const b = splitBound(h); if (b) {
             let p = findP(b[0]);
             if (!p) {
-              if (b[1] === 'm') return;
+              if (['m', 'hl', 'hh', 's'].includes(b[1])) return;
             p = {id: uid('p'), name: b[0], type: b[1] === 'v' ? 'boolean' : 'number', unit: '', min: null, max: null, res: 1, vals: [], round: 'nearest', weight: 5, details: ''};
               out.parameters.push(p);
               notes.push(`Parameter "${b[0]}" was found only in the product columns and was added with default settings.`);
@@ -2110,6 +2259,8 @@ function fromCSV(text){
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
         else if (k === 'v') { if (isBool(p)) { const b = parseBool(c); if (b) pr.flags[p.id] = b; } }
         else if (k === 'm') { if (parseBool(c) === 'yes') (pr.must = pr.must || {})[p.id] = true; }
+        else if (k === 'hl' || k === 'hh') { const n = num(c); if (n != null) { pr.hard = pr.hard || {}; const h = pr.hard[p.id] || [null, null]; h[k === 'hl' ? 0 : 1] = n; pr.hard[p.id] = h; } }
+        else if (k === 's') { if (isVar(p)) { pr.sets = pr.sets || {}; pr.sets[p.id] = String(c ?? '').split(/[;|]/).map(t => t.trim()).filter(Boolean).map(t => { const id = labId(p, t); if (!id) unknown.add(`${p.name}: "${t}"`); return id; }).filter(Boolean); } }
         else if (isVar(p)) { const r = pr.ranges[p.id] || [null, null], t = String(c ?? '').trim(); r[k] = labId(p, t); if (t && r[k] == null) unknown.add(`${p.name}: "${t}"`); pr.ranges[p.id] = r; }
         else if (!isBool(p)) { const r = pr.ranges[p.id] || [null, null], raw = num(c); r[k] = conformValue(p, raw); if (raw != null && r[k] !== raw) adjusted++; pr.ranges[p.id] = r; }
       });
@@ -2188,10 +2339,13 @@ async function exportCSV(all){
 
 /* ======================= SHEET (editor dialog) ======================= */
 let sheetSave = null;
+// Text boxes grow to show their full content (no scrolling inside the box).
+function autoGrow(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
 function openSheet(title, html, onSave, onMount){
   $('#sheetTitle').textContent = title; $('#sheetBody').innerHTML = html; $('#sheetBody').scrollTop = 0;
   sheetSave = onSave; $('#sheet').classList.remove('hidden'); document.body.classList.add('locked');
   if (onMount) onMount();
+  $('#sheetBody').querySelectorAll('textarea').forEach(t => { t.classList.add('grow'); t.addEventListener('input', () => autoGrow(t)); autoGrow(t); });
 }
 function closeSheet(){ $('#sheet').classList.add('hidden'); document.body.classList.remove('locked'); sheetSave = null; }
 $('#sheetCancel').onclick = closeSheet;
@@ -2238,7 +2392,10 @@ function sample(){
 }
 
 /* ======================= START ======================= */
-save();
+// Load the active profile only after all helpers exist; if stored data cannot be read it is left
+// untouched (not overwritten) and the app opens empty.
+S = load();
+if (!readOnly) save(); else toast('Saved data for this profile could not be read; it is kept unchanged and changes are not saved.');
 // Match is always the opening view; inputs are kept from last time. With entered values, Input
 // Parameters is collapsed and Result and All Products share the screen; otherwise only the inputs show.
 {

@@ -1,5 +1,5 @@
 // Offline support. Increase VERSION when index.html changes so devices pick up the update.
-const VERSION = 'product-match-v23';
+const VERSION = 'product-match-v24';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
