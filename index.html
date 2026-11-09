@@ -418,6 +418,8 @@ textarea.grow{overflow:hidden;resize:none;min-height:64px}
 .condnote{color:var(--accent);margin:6px 2px 0}
 .chip.cc{border-color:var(--accent)}
 .avm{display:inline-block;font-size:13px;font-weight:900;line-height:1;margin-right:4px;flex:none}
+#list .chip{position:relative}
+#list .chip .avm{position:absolute;right:5px;bottom:3px;margin:0;font-size:12px}
 .avm.av-std{color:#16a34a}.avm.av-opt{color:#eab308}.avm.av-na{color:#9ca3af}
 .avnone{align-self:center;margin-left:2px}
 .plline.pl{color:var(--ink)}.plline .hit{color:var(--bad)}.plline .miss{color:#b45309}
@@ -526,12 +528,13 @@ const avMark = a => a ? `<span class="avm av-${a}" title="${AV[a]}" aria-label="
 // Parameters a product should not be used with, and parameters it requires.
 const pnames = ids => (ids || []).map(P).filter(Boolean);
 // A parameter is "in use" when entered, its condition is met and (Y/N) the input is Yes.
-const inUse = p => !!p && (S.entered || []).includes(p.id) && inVal(p) != null && condMet(p) && (!isBool(p) || inVal(p) === 'yes');
+// Y/N: p.side says which answer counts ('yes' default, 'no', or 'any').
+const inUse = p => !!p && (S.entered || []).includes(p.id) && inVal(p) != null && condMet(p) && (!isBool(p) || (p.side || 'yes') === 'any' || inVal(p) === (p.side || 'yes'));
 // Lines under a product's name: products not to combine with (tap for the reason), parameters not to
 // combine with (in use = flagged), parameters required (not in use = flagged). r: the product's ranking.
-const prodLines = (pr, r) => {
+const prodLines = (pr, r, icon = false) => {
   const scored = !!r, hit = new Set(r ? r.mis : []), miss = new Set(r ? r.miss : []);
-  return (avoidOf(pr).length ? `<div class="plline xl" ${pr.avoidNote ? `data-info="x|${pr.id}|a"` : ''}>Do not combine with products: ${esc(avoidOf(pr).map(o => o.name).join(', '))}${pr.avoidNote ? ' ⓘ' : ''}</div>` : '')
+  return (avoidOf(pr).length && !icon ? `<div class="plline xl" ${pr.avoidNote ? `data-info="x|${pr.id}|a"` : ''}>Do not combine with products: ${esc(avoidOf(pr).map(o => o.name).join(', '))}${pr.avoidNote ? ' ⓘ' : ''}</div>` : '')
   + (pnames(pr.avoidP).length ? `<div class="plline pl">Do not combine with: ${pnames(pr.avoidP).map(p => hit.has(p.id) ? `<b class="hit">⚠ ${esc(p.name)}</b>` : esc(p.name)).join(', ')}</div>` : '')
   + (pnames(pr.requires).length ? `<div class="plline rl">Requires: ${pnames(pr.requires).map(p => scored && miss.has(p.id) ? `<b class="miss">${esc(p.name)} (not entered)</b>` : esc(p.name)).join(', ')}</div>` : '');
 };
@@ -657,7 +660,7 @@ function fix(s){
   const ids = new Set(s.products.map(pr => pr.id));
   s.products.forEach(pr => { pr.avoid = [...new Set((Array.isArray(pr.avoid) ? pr.avoid : []).filter(x => ids.has(x) && x !== pr.id))]; if (pr.avoidNote == null) pr.avoidNote = ''; });
   const pids = new Set(s.parameters.map(p => p.id));
-  s.products.forEach(pr => { pr.requires = [...new Set(pr.requires.filter(x => pids.has(x)))]; pr.avoidP = [...new Set(pr.avoidP.filter(x => pids.has(x)))];
+  s.products.forEach(pr => { pr.requires = [...new Set(pr.requires.filter(x => pids.has(x)))]; pr.avoidP = [...new Set(pr.avoidP.filter(x => pids.has(x) && !pr.requires.includes(x)))];
     Object.keys(pr.avail).forEach(k => { if (!pids.has(k) || !AV[pr.avail[k]]) delete pr.avail[k]; }); });
   s.products.forEach(pr => pr.avoid.forEach(x => { const o = s.products.find(q => q.id === x); if (!o.avoid.includes(pr.id)) o.avoid.push(pr.id); }));
   s.parameters.forEach(p => { p.vals = (p.vals || []).filter(v => v && typeof v === 'object'); });
@@ -1869,12 +1872,12 @@ function updateMatch(){
       else if (isBool(p)) val = r.pr.flags[p.id] ? BL[r.pr.flags[p.id]] : '—';
       else val = esc(rangeText(r.pr, p));
       const mm = rel && r.pr.must && r.pr.must[p.id];
-      return `<div class="chip ${!rel || !scored ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''} ${p.req ? 'req' : ''}" data-pc="${p.id}"><span class="muted">${rel ? avMark(avOf(r.pr, p)) : ''}${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${val}</b></div>`;
+      return `<div class="chip ${!rel || !scored ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''} ${p.req ? 'req' : ''}" data-pc="${p.id}"><span class="muted">${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${val}</b>${rel ? avMark(avOf(r.pr, p)) : ''}</div>`;
     }).join('');
     const xc = scored && shown && conflicts(shown.pr, r.pr), na = avoidOf(r.pr).length;
     return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''} ${scored && r.unsuit ? 'unsuit' : ''} ${scored ? '' : 'unscored'}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
-        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${prodLines(r.pr, scored ? r : null)}
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${avoidIcon(r.pr)}${prodLines(r.pr, scored ? r : null, true)}
           ${xc ? `<div><span class="xtag">⚠ Do not combine with ${esc(shown.pr.name)}</span></div>` : ''}
           ${scored && r.unsuit ? `<div><span class="ntag">✕ Not suitable: ${esc(r.fails.join(', '))}</span></div>` : ''}
 </div>
@@ -2034,6 +2037,9 @@ function editParam(id, field){
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab. Snaps to the resolution and allowable range.</div></div>
     <div class="field" id="defVarWrap"><label>Default value (optional)</label><select id="fDefV"></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
+    <div class="field" id="sideWrap"><label>Counts as in use when</label>
+      <select id="fSide"><option value="yes" ${(p.side || 'yes') === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.side === 'no' ? 'selected' : ''}>No</option><option value="any" ${p.side === 'any' ? 'selected' : ''}>Either (any answer)</option></select>
+      <div class="xsmall muted" style="margin:5px 2px">The answer that counts for a product's “Do not combine with” and “Requires” parameter lists.</div></div>
     <div class="field" id="defBoolWrap"><label>Default value (optional)</label>
       <select id="fDefB"><option value="">Blank</option><option value="yes" ${p.def === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.def === 'no' ? 'selected' : ''}>No</option></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
@@ -2062,41 +2068,46 @@ function editParam(id, field){
       if (cpar) {
         let val;
         if (isBool(cpar)) val = $('#fCondB').value;
-        else if (isVar(cpar)) { val = [...document.querySelectorAll('#condVal [data-cv].on')].map(b => b.dataset.cv); if (!val.length) return 'Select at least one value for the condition.'; }
+        else if (isVar(cpar)) { val = [...document.querySelectorAll('#condVal [data-cv].on')].map(b => b.dataset.cv); if (!val.length) return bad('#condVal', 'Select at least one value for the condition.'); }
         else { const a = num($('#fCondLo').value), b = num($('#fCondHi').value);
-          if (a == null && b == null) return 'Enter a value for the condition (at or above, at or below, or both).';
-          if (a != null && b != null && a > b) return 'Condition: the lower value exceeds the upper value.';
+          if (a == null && b == null) return bad('#condVal', 'Enter a value for the condition: at or above, at or below, or both.');
+          if (a != null && b != null && a > b) return bad('#condVal', 'The lower value exceeds the upper value.');
           val = [a, b]; }
         cond = {on: con, val};
       }
       const probe = {type, res};
       const textList = type === 'text', numVar = type === 'number' && res === 'var';
-      if (!name) return 'Enter a parameter name.';
-      if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return 'A parameter with this name already exists.';
+      if (!name) return bad('#fName', 'Enter a parameter name.');
+      if (S.parameters.some(x => x.id !== p.id && x.name.trim().toLowerCase() === name.toLowerCase())) return bad('#fName', 'A parameter with this name already exists.');
       let min = null, max = null, step = null, labels = [], nums = [];
       if (textList) {
         labels = vals.map(v => ({id: v.id, t: v.t.trim()}));
-        if (labels.some(v => !v.t)) return 'Every listed value needs text. Delete empty rows.';
-        if (labels.length < 2) return 'Enter at least two values.';
-        if (new Set(labels.map(v => v.t.toLowerCase())).size !== labels.length) return 'Listed values must be unique.';
+        if (labels.some(v => !v.t)) return bad('#valList', 'Every listed value needs text. Delete empty rows.');
+        if (labels.length < 2) return bad('#valList', 'Enter at least two values.');
+        if (new Set(labels.map(v => v.t.toLowerCase())).size !== labels.length) return bad('#valList', 'Listed values must be unique.');
       } else if (numVar) {
         nums = vals.map(v => num(v.t));
-        if (nums.some(x => x == null)) return 'Every listed value must be a number. Delete empty rows.';
-        if (nums.length < 2) return 'Enter at least two values.';
-        if (new Set(nums).size !== nums.length) return 'Listed values must be unique.';
+        if (nums.some(x => x == null)) return bad('#valList', 'Every listed value must be a number. Delete empty rows.');
+        if (nums.length < 2) return bad('#valList', 'Enter at least two values.');
+        if (new Set(nums).size !== nums.length) return bad('#valList', 'Listed values must be unique.');
         labels = vals.map((v, i) => ({id: v.id, t: String(nums[i])}));
       } else if (type !== 'boolean') {
         min = roundP(probe, num($('#fMin').value)); max = roundP(probe, num($('#fMax').value));
-        if (min != null && max != null && min > max) return 'Minimum exceeds maximum.';
+        if (min != null && max != null && min > max) return bad('#fMin', 'Minimum exceeds maximum.');
       }
       if (type === 'percent' || (type === 'number' && !numVar)) {
         step = num($('#fStep').value);
-        if (!(step > 0)) return 'Enter a slider step greater than 0.';
+        if (!(step > 0)) return bad('#fStep', 'Enter a slider step greater than 0.');
         step = Math.max(res, Math.round(step / res) * res); step = Number(step.toFixed(decOf(res)));
       }
       const def = type === 'boolean' ? ($('#fDefB').value || null)
         : textList || numVar ? ($('#fDefV').value || null)
         : conformValue({type, res, min, max}, num($('#fDef').value));
+      // A changed condition moves the parameter's card under its controlling parameter: show it there.
+      if (JSON.stringify(cond) !== JSON.stringify(p.cond || null)) setTimeout(() => {
+        const c = $('#sheet').classList.contains('hidden') && document.querySelector(`[data-card="${p.id}"]`);
+        if (c) { c.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'}); note(c, cond ? 'Moved under ' + P(cond.on).name : null, {quiet: true}); }
+      }, 450);
       // Changing between Y/N, Text and numeric types clears this parameter's product values and input.
       if (id && kindOf(p.type, p.res) !== kindOf(type, res)) {
         if (!(await askConfirm({title: 'Change parameter type?', ok: 'Change type', danger: true, msg: 'Changing between Number / %, Text and Y/N clears this parameter\'s product values and current input.'}))) return 'Type change cancelled.';
@@ -2110,7 +2121,7 @@ function editParam(id, field){
         slider: type === 'boolean' ? true : $('#fSlider').checked,
         stepAck: type === 'number' || type === 'percent' ? stepAck : null,
         byValue: numVar && $('#fByVal').checked,
-        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(), cond, req: $('#fReq').checked, reqSw: $('#fReqSw').checked,
+        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(), cond, req: $('#fReq').checked, reqSw: $('#fReqSw').checked, side: type === 'boolean' ? $('#fSide').value : undefined,
         multi: (textList || numVar) && $('#fMulti').checked, maxSel: (textList || numVar) && $('#fMulti').checked && num($('#fMaxSel').value) >= 1 ? Math.round(num($('#fMaxSel').value)) : null});
       syncSets(S); checkConds(S);
       // Keep references valid: deleted listed values are cleared; numbers move to the parameter's resolution.
@@ -2259,7 +2270,7 @@ function editParam(id, field){
         show('#roundWrap', type !== 'boolean' && !list);
         show('#defNumWrap', type !== 'boolean' && !list);
         show('#defVarWrap', list);
-        show('#defBoolWrap', type === 'boolean');
+        show('#defBoolWrap', type === 'boolean'); show('#sideWrap', type === 'boolean');
         const u = $('#fUnit');
         if (t.unit) { u.value = t.unit; u.disabled = true; } else { if (u.disabled) u.value = ''; u.disabled = false; }
         u.placeholder = type === 'text' ? 'Optional (e.g., grade, level)' : 'Optional (e.g., cm, days)';
@@ -2287,7 +2298,7 @@ function editParam(id, field){
       // new resolution changes shakes and highlights for review (the typed value is kept).
       $('#fPrec').onchange = () => {
         precSel[$('#fType').value] = $('#fPrec').value;
-        apply();
+        reveal(apply);
         if (!mode()) { reformat(['fStep', 'fMin', 'fMax', 'fDef'], true); checkStep(); }
       };
       // Entered values are formatted to the resolution when the field is left; a value changed by
@@ -2301,7 +2312,7 @@ function editParam(id, field){
           checkStep();
         });
       });
-      ['#fType', '#fRound', '#fByVal', '#fMulti'].forEach(s => $(s).onchange = apply);
+      ['#fType', '#fRound', '#fByVal', '#fMulti'].forEach(s => $(s).onchange = () => reveal(apply));
       apply(); drawVals();
       // Condition editor: its form follows the type of the controlling parameter.
       const drawCond = () => {
@@ -2318,7 +2329,8 @@ function editParam(id, field){
             <div class="xsmall muted" style="margin:5px 2px">${esc(u)} Leave one side blank for "at or above" / "at or below".</div>`;
         }
       };
-      $('#fCondOn').onchange = drawCond; drawCond();
+      $('#fCondOn').onchange = () => { drawCond(); const box = $('#condVal'); if (box.children.length) showNew([box]); };
+      drawCond();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
       if ($('#enAll')) {
         const count = () => { const all = [...document.querySelectorAll('[data-en]')]; $('#enCount').textContent = `${all.filter(c => c.checked).length} of ${all.length}`; };
@@ -2467,7 +2479,7 @@ function editProduct(id, field){
     <div id="fErr" class="small err-text"></div>`,
     () => {
       const name = $('#fName').value.trim();
-      if (!name) return 'Enter a product name.';
+      if (!name) return bad('#fName', 'Enter a product name.');
       const ranges = {}, flags = {}, rel = {}, must = {}, sets = {}, hard = {};
       for (const p of S.parameters) {
         if (isMulti(p)) sets[p.id] = [...document.querySelectorAll(`[data-ms="${p.id}"] .mchip.on`)].map(b => b.dataset.msv);
@@ -2475,15 +2487,14 @@ function editProduct(id, field){
           const a = num(document.querySelector(`[data-hlo="${p.id}"]`).value), b = num(document.querySelector(`[data-hhi="${p.id}"]`).value);
           const c = rangeChecks(p, num(document.querySelector(`[data-lo="${p.id}"]`).value), num(document.querySelector(`[data-hi="${p.id}"]`).value), a, b);
           if (c.err.length && document.querySelector(`[data-rel="${p.id}"]`).checked) {
-            const pf = document.querySelector(`[data-pf="${p.id}"]`); pf.classList.remove('collapsed'); pf.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'}); note(pf, null, {quiet: true});
-            return `${p.name}: ${c.err.join(' ')}`;
+            return bad(document.querySelector(`[data-pf="${p.id}"]`), `${p.name}: ${c.err.join(' ')}`);
           }
           if (a != null || b != null) hard[p.id] = [a, b];
         }
         if (document.querySelector(`[data-must="${p.id}"]`).checked) must[p.id] = true;
         const on = document.querySelector(`[data-rel="${p.id}"]`).checked;
         const w = num(document.querySelector(`[data-pw="${p.id}"]`).value);
-        if (on && (w == null || w < 0 || w > 10)) return `Enter a weight from 0 to 10 for ${p.name}.`;
+        if (on && (w == null || w < 0 || w > 10)) return bad(document.querySelector(`[data-pw="${p.id}"]`), `Enter a weight from 0 to 10 for ${p.name}.`);
         rel[p.id] = {on, w: on ? w : (w == null ? p.weight : w)};
         if (isBool(p)) { const v = document.querySelector(`[data-bv="${p.id}"]`).value; if (v) flags[p.id] = v; }
         else if (isMulti(p)) { const r0 = pr.ranges[p.id]; if (r0) ranges[p.id] = r0; }
@@ -2496,6 +2507,8 @@ function editProduct(id, field){
       const avoid = [...document.querySelectorAll('#avList .xchip.on')].map(b => b.dataset.av);
       const requires = [...document.querySelectorAll('#rqList .xchip.on')].map(b => b.dataset.rq);
       const avoidP = [...document.querySelectorAll('#apList .xchip.on')].map(b => b.dataset.ap);
+      const both = avoidP.find(x => requires.includes(x));
+      if (both) { $('#rqWrap').open = true; return bad(document.querySelector(`#rqList [data-rq="${both}"]`), `${P(both).name} is in both “Do not combine with” and “Requires”. Keep it in one list.`); }
       const avail = {}; document.querySelectorAll('[data-avsel]').forEach(g => { const a = (g.querySelector('.on') || {}).dataset; if (a && a.avv) avail[g.dataset.avsel] = a.avv; });
       Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, must, sets: Object.assign(pr.sets || {}, sets), hard, avail, requires, avoidP, avoid, avoidNote: $('#fAvNote').value.trim()});
       if (!id) S.products.push(pr);
@@ -2579,7 +2592,11 @@ function editProduct(id, field){
       const avCount = () => { const t = [...document.querySelectorAll('#avList .xchip.on')].map(b => S.products.find(o => o.id === b.dataset.av).name); $('#avSum').textContent = t.length ? t.join(', ') : 'None'; };
       const pSum = (list, key, sum) => { const t = [...document.querySelectorAll(list + ' .xchip.on')].map(b => P(b.dataset[key]).name); $(sum).textContent = t.length ? t.join(', ') : 'None'; };
       [['#rqList', 'rq', '#rqSum'], ['#apList', 'ap', '#apSum']].forEach(([list, key, sum]) => {
-        document.querySelectorAll(list + ' .xchip').forEach(b => b.onclick = () => { const on = !b.classList.contains('on'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); pSum(list, key, sum); });
+        document.querySelectorAll(list + ' .xchip').forEach(b => b.onclick = () => {
+          const on = !b.classList.contains('on'), other = key === 'rq' ? ['#apList', 'ap', 'Do not combine with'] : ['#rqList', 'rq', 'Requires'];
+          // A parameter cannot be both required and not combinable.
+          if (on && document.querySelector(`${other[0]} [data-${other[1]}="${b.dataset[key]}"].on`)) { note(b, `${P(b.dataset[key]).name} is already in “${other[2]}”. Remove it there first.`, {host: b.closest('details')}); return; }
+          b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); pSum(list, key, sum); });
         pSum(list, key, sum);
       });
       document.querySelectorAll('[data-avsel] [data-avv]').forEach(b => b.onclick = () => {
@@ -2697,7 +2714,7 @@ function parseType(t, unit){
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(d = S){
   const rows = [['[SETTINGS]'], ['Title', d.title], [], ['[PARAMETERS]'],
-    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning', 'Condition Parameter', 'Condition', 'Ranking', 'Ranking Switch']];
+    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning', 'Condition Parameter', 'Condition', 'Ranking', 'Ranking Switch', 'Counts When']];
   d.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isList(p) ? '' : plain(p.min), isList(p) ? '' : plain(p.max),
     isBool(p) || p.type === 'text' ? '' : isNumVar(p) ? 'Variable' : plain(resOf(p)),
@@ -2708,7 +2725,7 @@ function toCSV(d = S){
     isBool(p) ? '' : (p.slider === false ? 'No' : 'Yes'),
     isBool(p) || isList(p) ? '' : ROUND[p.round],
     p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details, p.reason || '',
-    p.cond ? (d.parameters.find(x => x.id === p.cond.on) || {}).name || '' : '', p.cond ? condText(p, d.parameters, true) : '', p.req ? 'Required' : 'Preferred', p.reqSw ? 'Shown' : '']));
+    p.cond ? (d.parameters.find(x => x.id === p.cond.on) || {}).name || '' : '', p.cond ? condText(p, d.parameters, true) : '', p.req ? 'Required' : 'Preferred', p.reqSw ? 'Shown' : '', isBool(p) ? ({yes: 'Yes', no: 'No', any: 'Either'})[p.side || 'yes'] : '']));
   rows.push([], ['[PRODUCTS]']);
   const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note', 'Do Not Combine Parameters', 'Requires'];
   const avCol = p => d.products.some(pr => pr.avail && pr.avail[p.id]);
@@ -2810,6 +2827,7 @@ function fromCSV(text){
       if (cp) np._cond = [cp, String(col(['condition', 'condition value']) ?? '').trim()];
       np.req = /^req/i.test(String(col(['ranking', 'required']) ?? '').trim());
       np.reqSw = /^(show|yes|on|true)/i.test(String(col(['ranking switch']) ?? '').trim());
+      { const sd = String(col(['counts when']) ?? '').trim().toLowerCase(); if (sd) np.side = sd.startsWith('n') ? 'no' : sd.startsWith('e') || sd.startsWith('a') ? 'any' : 'yes'; }
       np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : isVar(np) ? labId(np, dv) : conformValue(np, num(dv));
     }
     else if (section === '[PRODUCTS]') {
@@ -2961,6 +2979,19 @@ function fitSheet(){
   sh.style.top = vv.offsetTop + 'px'; sh.style.height = vv.height + 'px'; sh.style.bottom = 'auto';
 }
 if (window.visualViewport) { visualViewport.addEventListener('resize', fitSheet); visualViewport.addEventListener('scroll', fitSheet); }
+// After a selection in an editor: fields that have just appeared are brought into view and highlighted.
+function showNew(els){
+  if (!els.length) return;
+  els[0].scrollIntoView({block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth'});
+  els.forEach(el => note(el, null, {quiet: true}));
+}
+function reveal(fn){
+  const vis = () => [...document.querySelectorAll('#sheetBody .field, #sheetBody #valList')].filter(el => el.offsetParent);
+  const before = new Set(vis()); fn();
+  showNew(vis().filter(el => !before.has(el)));
+}
+// Save-handler result for a field that needs attention (highlighted, shaken and commented).
+const bad = (el, msg) => ({el: typeof el === 'string' ? $(el) : el, msg});
 function openSheet(title, html, onSave, onMount){
   $('#sheetTitle').textContent = title; $('#sheetBody').innerHTML = html; $('#sheetBody').scrollTop = 0;
   sheetSave = onSave; $('#sheet').classList.remove('hidden'); document.body.classList.add('locked'); fitSheet();
@@ -2980,7 +3011,14 @@ $('#sheetSave').onclick = async () => {
     if (!ok) return;
     acceptAll($('#sheetBody'));
   }
-  const err = sheetSave && await sheetSave(); if (typeof err === 'string') { $('#fErr').textContent = err; } else { closeSheet(); if (DEV.ctx) devReturn(true); }
+  const err = sheetSave && await sheetSave();
+  document.querySelectorAll('#sheetBody .fbub.note').forEach(x => x.remove());
+  if (err && err.el) {   // a field needs attention: bring it into view, highlight, shake and comment
+    $('#fErr').textContent = '';
+    const f = err.el.closest('.pfield'); if (f) f.classList.remove('collapsed');
+    err.el.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'});
+    setTimeout(() => note(err.el, err.msg), 250);
+  } else if (typeof err === 'string') { $('#fErr').textContent = err; } else { closeSheet(); if (DEV.ctx) devReturn(true); }
 };
 
 /* ======================= SAMPLE DATA ======================= */

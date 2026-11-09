@@ -119,20 +119,20 @@ Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. 
 
 ## Do-not-combine products
 
-In the product editor, **⚠ Do not combine with products:** is a collapsed list (the selected products are written in its heading; it opens only when tapped). Tap a product to mark that the two should not be used together (applies to both products), and add the reason. In Result and All Products, a red line **Do not combine with products: …** is shown below the product's name; tap it (ⓘ) for the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
+In the product editor, **⚠ Do not combine with products:** is a collapsed list (the selected products are written in its heading; it opens only when tapped). Tap a product to mark that the two should not be used together (applies to both products), and add the reason. In Result, a red line **Do not combine with products: …** is shown below the product's name; tap it (ⓘ) for the reason. In All Products, a red ⚠ icon beside the name opens the list and the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
 
 ## Parameter checks: Do not combine with / Requires
 
 The product editor has two more collapsed lists that reference parameters:
 
-- **Do not combine with:** parameters the product is not configurable with. When one is in use on the Match screen (entered and, for Y/N, set to Yes), it is flagged as a possible mismatch.
+- **Do not combine with:** parameters the product is not configurable with. When one is in use on the Match screen (entered and, for Y/N, set to the answer chosen in **Counts as in use when** in the parameter editor: Yes, No or Either), it is flagged as a possible mismatch.
 - **Requires:** parameters the product needs. When one is not in use (a conditional parameter counts only while its condition is met), it is flagged as possibly missing.
 
-Both appear as their own lines below the product's name in Result and All Products, with the flagged parameters highlighted, and the matching Input Parameter tile shows a notice for the product shown in Result. These are notices only; the score is not changed. CSV product columns: `Do Not Combine Parameters` and `Requires` (parameter names separated by semicolons).
+A parameter cannot be in both lists. Both appear as their own lines below the product's name in Result and All Products, with the flagged parameters highlighted, and the matching Input Parameter tile shows a notice for the product shown in Result. These are notices only; the score is not changed. CSV product columns: `Do Not Combine Parameters` and `Requires` (parameter names separated by semicolons); parameter column `Counts When` (Yes / No / Either) for Y/N parameters.
 
 ## Availability
 
-Below **◆ Must match** each relevant parameter has **Standard / Available as option / Not available**. None is selected by default (No information); tap the selected one again to clear it. When one is selected, Result and All Products show a check left of the parameter name: green (Standard), yellow (Available as option) or gray (Not available). Availability is informational and does not change the score. CSV product column: `<Parameter> Availability` (blank = No information), written only for parameters that use it.
+Below **◆ Must match** each relevant parameter has **Standard / Available as option / Not available**. None is selected by default (No information); tap the selected one again to clear it. When one is selected, Result shows a check left of the parameter name and All Products shows it at the bottom right of the parameter tile: green (Standard), yellow (Available as option) or gray (Not available). Availability is informational and does not change the score. CSV product column: `<Parameter> Availability` (blank = No information), written only for parameters that use it.
 
 ## Must match
 
@@ -180,3 +180,7 @@ In the parameter editor, **Show only when** links a parameter to a controlling p
 - **Result:** a conditional parameter is listed inside its controlling parameter's row, under one "When …" heading, and only while it is relevant; otherwise it is omitted. The count of relevant inputs within the product's values is shown in the heading of that panel.
 - **Products:** in the product editor, conditional parameters are nested inside the controlling parameter. A nested parameter that needs attention opens its controlling parameter. A sub-parameter that is not activated has no expand/collapse control.
 - **CSV:** parameter columns `Condition Parameter` (the controlling parameter's name) and `Condition` (for example `Yes`, `Local; Spreading/Systemic`, `≥ 2 cm`, `2 – 10`).
+
+## Editor checks
+
+When a value needs attention on Save, the field is brought into view, highlighted and shaken, with a comment beside it. When a selection in the parameter editor adds fields (type, resolution, condition), the new fields are brought into view and highlighted. After a parameter is made conditional, Settings scrolls to its card, now under the controlling parameter.
