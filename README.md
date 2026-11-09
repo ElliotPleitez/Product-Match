@@ -119,7 +119,15 @@ Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. 
 
 ## Do-not-combine products
 
-In the product editor, **⚠ Do not combine with** lists the other products; tap one to mark that the two should not be used together (applies to both products), and add the reason. A red ⚠ icon beside the product's name (Result, All Products and Settings ▸ Products) opens the list of products not to combine with and the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
+In the product editor, **⚠ Do not combine with:** is a collapsed list (the selected products are written in its heading; it opens only when tapped). Tap a product to mark that the two should not be used together (applies to both products), and add the reason. In Result and All Products, a red line **Do not combine with: …** is shown below the product's name; tap it (ⓘ) for the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
+
+## Requires
+
+**Requires:** in the product editor is a second collapsed list of products that must be used with this one (for example a secondary dressing). It is shown as its own line, **Requires: …**, below the product's name in Result and All Products. CSV product column: `Requires` (names separated by semicolons).
+
+## Availability
+
+Below **◆ Must match** each relevant parameter has **Standard / Available as option / Not available** (default Standard). Result and All Products mark the product's value with a green ✓ (Standard), yellow ✓ (Available as option) or gray – (Not available); no mark is shown where the product has no data. Availability is informational and does not change the score. CSV product column: `<Parameter> Availability`, written only for parameters that use a non-standard value.
 
 ## Must match
 
@@ -149,11 +157,21 @@ Hold the Settings icon for 2 seconds to turn developer mode on or off (the icon 
 
 In the product editor, each Number or % parameter checks the range against its hard limit and the allowable range. Blocking (Save is held and the parameter is outlined): lower above upper, hard minimum above hard maximum, a range extending beyond the hard limit. Advisory: a hard limit at or outside the allowable range (no effect, or every input not suitable), or a hard limit with no range. Hard limits are rounded to the resolution when left. The same checks appear in Data ▸ Review. Multi-selection is also available for Number parameters with listed values.
 
+## Required / Preferred
+
+The parameter editor has **Required (overrides weight)**; the same switch is on each Match tile beside **Weight**. Required: any product whose values do not include the input is marked **✕ Not suitable** and ranked last, regardless of weight. Preferred: scored by weight as usual. Required parameters are shaded purple in Result and All Products. CSV parameter column: `Ranking` (Required / Preferred).
+
+## Reset a parameter
+
+The ↺ icon on a Match tile clears that input so the parameter is left out of the ranking. This differs from a default value, which is counted. The ↺ in the header returns all inputs to their default values.
+
 ## Conditional parameters
 
 In the parameter editor, **Show only when** links a parameter to a controlling parameter (any non-conditional Number, %, Text or Y/N parameter) and a condition: Yes / No for Y/N; any of the selected values for Text or listed values; at or above, at or below, or between for Number and %. A parameter that controls others cannot itself be conditional.
 
+- **Settings:** conditional parameters are shown as sub-tiles inside the controlling parameter; ▲ ▼ reorder them among themselves (a controlling parameter moves with its sub-tiles). This order is used throughout.
 - **Match:** the conditional parameter appears inside the controlling parameter's tile as a collapsible sub-tile. It is hidden until the condition is met and opens each time it appears (and on each launch).
 - **Scoring:** it counts toward the match only while the condition is met. Its default value is applied, and counted, when the condition is first met; until then defaults have no effect.
-- **Products:** in the product editor, conditional parameters are nested inside the controlling parameter, with the same collapsible layout.
+- **Result:** a conditional parameter is listed inside its controlling parameter's row, under one "When …" heading, and only while it is relevant; otherwise it is omitted. The count of relevant inputs within the product's values is shown in the heading of that panel.
+- **Products:** in the product editor, conditional parameters are nested inside the controlling parameter. A nested parameter that needs attention opens its controlling parameter. A sub-parameter that is not activated has no expand/collapse control.
 - **CSV:** parameter columns `Condition Parameter` (the controlling parameter's name) and `Condition` (for example `Yes`, `Local; Spreading/Systemic`, `≥ 2 cm`, `2 – 10`).
