@@ -296,11 +296,11 @@ nav.tabs button.on{color:var(--accent)}
 /* list cards: side buttons aligned to the top of the tile; parameter chips wrap */
 .lcard>.mv,.lcard>.acts{justify-content:flex-start}
 .lcard{grid-template-columns:auto minmax(0,1fr) auto}
-.lcard>.mv button{font:inherit;font-size:13px;width:auto;min-width:56px;height:35px;padding:0 9px;border-radius:8px}
-.lsubs{margin-top:10px;display:flex;flex-direction:column;gap:8px}
-.lsubs .lcard{margin:0;background:var(--soft);border-left:3px solid var(--accent);box-shadow:none}
+.lcard>.mv button{font:inherit;font-size:13px;width:auto;min-width:36px;height:35px;padding:0 4px;border-radius:8px}
+.lsubs{grid-column:1/-1;margin-top:2px;display:flex;flex-direction:column;gap:8px}
+.lsubs .lcard{margin:0;background:color-mix(in srgb,var(--accent) 3%,var(--card));border-left:3px solid color-mix(in srgb,var(--accent) 35%,transparent);box-shadow:none}
 .lsubs .lcard .lbody{min-width:0}
-.ccond{font-size:12px;font-weight:600;color:var(--accent);margin-top:2px}
+.ccond{font-size:12px;font-weight:600;color:color-mix(in srgb,var(--accent) 70%,var(--card));margin-top:2px}
 .chips.wrap{flex-wrap:wrap;overflow:visible}
 .chips.wrap .chip{max-width:100%}
 .chips.wrap .chip b{overflow-wrap:anywhere}
@@ -407,18 +407,23 @@ textarea.grow{overflow:hidden;resize:none;min-height:64px}
 .vstrip.mwrap{flex-wrap:wrap;overflow:visible}
 .mhint{margin:2px 0 6px}
 .subs{margin-top:10px;display:flex;flex-direction:column;gap:8px}
-.subp{border-left:3px solid var(--accent);border-radius:10px;background:var(--soft);padding:6px 6px 6px 8px}
+.subp{border-left:3px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:10px;background:color-mix(in srgb,var(--accent) 3%,var(--card));padding:6px 6px 6px 8px}
 .subh{display:flex;align-items:center;gap:6px;width:100%;font:inherit;font-size:12.5px;text-transform:none;letter-spacing:0;font-weight:700;color:var(--accent);background:none;border:0;padding:2px 2px 6px;text-align:left;cursor:pointer}
 .subh .caret{transition:transform .2s}
 .subp.closed .subh .caret{transform:rotate(-90deg)}
 .subp.closed .subb{display:none}
 .subb > .inp{margin:0;box-shadow:none}
-.psubs{margin:10px 0 2px 6px;padding-left:8px;border-left:3px solid var(--accent);display:flex;flex-direction:column;gap:8px}
+.psubs{margin:10px 0 2px 6px;padding-left:8px;border-left:3px solid color-mix(in srgb,var(--accent) 35%,transparent);display:flex;flex-direction:column;gap:8px}
 .pfield.collapsed > .psubs{display:none}
 .condnote{color:var(--accent);margin:6px 2px 0}
 .chip.cc{border-color:var(--accent)}
-.avm{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;font-size:10px;font-weight:800;line-height:1;color:#fff;margin-right:5px;vertical-align:1px;flex:none}
-.avm.av-std{background:#16a34a}.avm.av-opt{background:#eab308;color:#3b2f00}.avm.av-na{background:#9ca3af}
+.avm{display:inline-block;font-size:13px;font-weight:900;line-height:1;margin-right:4px;flex:none}
+.avm.av-std{color:#16a34a}.avm.av-opt{color:#eab308}.avm.av-na{color:#9ca3af}
+.avnone{align-self:center;margin-left:2px}
+.plline.pl{color:var(--ink)}.plline .hit{color:var(--bad)}.plline .miss{color:#b45309}
+.pnote{font-size:12px;font-weight:600;margin:4px 0 2px;padding:5px 8px;border-radius:8px}
+.pnote.x{color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,transparent)}
+.pnote.m{color:#b45309;background:color-mix(in srgb,#f59e0b 12%,transparent)}
 .avsel{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .avsel button{display:inline-flex;align-items:center;font:inherit;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 10px;cursor:pointer;opacity:.7}
 .avsel button.on{opacity:1;font-weight:700;border-width:2px}
@@ -434,7 +439,7 @@ details.plist[open]>summary{margin-bottom:8px}
 .plline{font-size:12px;margin-top:3px;line-height:1.35}
 .plline.xl{color:var(--bad);font-weight:600}
 .plline.rl{color:var(--ink)}
-.fitsub{margin:2px 0 6px 8px;padding-left:8px;border-left:3px solid var(--accent)}
+.fitsub{margin:2px 0 6px 8px;padding-left:8px;border-left:3px solid color-mix(in srgb,var(--accent) 35%,transparent)}
 .fitsub .ccond{margin-top:6px}
 .fit.req{background:color-mix(in srgb,#7c3aed 9%,transparent);border-radius:10px;padding-left:6px;padding-right:6px}
 .chip.req{background:color-mix(in srgb,#7c3aed 12%,var(--soft));border-color:#7c3aed}
@@ -514,14 +519,22 @@ const ICON_AVOID = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const paramOrder = () => { const out = [], add = p => { out.push(p); kidsOf(p).forEach(add); };
   S.parameters.filter(p => !p.cond || !S.parameters.some(q => q.id === p.cond.on)).forEach(add); return out; };
 // Availability of a parameter's feature on a product: Standard (green), Available as option (yellow),
-// Not available (gray).
+// Not available (gray). Unmarked = No information (no check shown).
 const AV = {std: 'Standard', opt: 'Available as option', na: 'Not available'};
-const avOf = (pr, p) => ((pr.avail || {})[p.id]) || 'std';
-const avMark = a => `<span class="avm av-${a}" title="${AV[a]}" aria-label="${AV[a]}">${a === 'na' ? '–' : '✓'}</span>`;
-const reqOf = pr => (pr.requires || []).map(x => S.products.find(q => q.id === x)).filter(Boolean);
-// "Do not combine with: …" and "Requires: …" lines under a product's name (tap the first for the reason).
-const prodLines = pr => (avoidOf(pr).length ? `<div class="plline xl" ${pr.avoidNote ? `data-info="x|${pr.id}|a"` : ''}>Do not combine with: ${esc(avoidOf(pr).map(o => o.name).join(', '))}${pr.avoidNote ? ' ⓘ' : ''}</div>` : '')
-  + (reqOf(pr).length ? `<div class="plline rl">Requires: ${esc(reqOf(pr).map(o => o.name).join(', '))}</div>` : '');
+const avOf = (pr, p) => ((pr.avail || {})[p.id]) || null;
+const avMark = a => a ? `<span class="avm av-${a}" title="${AV[a]}" aria-label="${AV[a]}">✓</span>` : '';
+// Parameters a product should not be used with, and parameters it requires.
+const pnames = ids => (ids || []).map(P).filter(Boolean);
+// A parameter is "in use" when entered, its condition is met and (Y/N) the input is Yes.
+const inUse = p => !!p && (S.entered || []).includes(p.id) && inVal(p) != null && condMet(p) && (!isBool(p) || inVal(p) === 'yes');
+// Lines under a product's name: products not to combine with (tap for the reason), parameters not to
+// combine with (in use = flagged), parameters required (not in use = flagged). r: the product's ranking.
+const prodLines = (pr, r) => {
+  const scored = !!r, hit = new Set(r ? r.mis : []), miss = new Set(r ? r.miss : []);
+  return (avoidOf(pr).length ? `<div class="plline xl" ${pr.avoidNote ? `data-info="x|${pr.id}|a"` : ''}>Do not combine with products: ${esc(avoidOf(pr).map(o => o.name).join(', '))}${pr.avoidNote ? ' ⓘ' : ''}</div>` : '')
+  + (pnames(pr.avoidP).length ? `<div class="plline pl">Do not combine with: ${pnames(pr.avoidP).map(p => hit.has(p.id) ? `<b class="hit">⚠ ${esc(p.name)}</b>` : esc(p.name)).join(', ')}</div>` : '')
+  + (pnames(pr.requires).length ? `<div class="plline rl">Requires: ${pnames(pr.requires).map(p => scored && miss.has(p.id) ? `<b class="miss">${esc(p.name)} (not entered)</b>` : esc(p.name)).join(', ')}</div>` : '');
+};
 // Do-not-combine icon: opens the list of products not to use with this one, and the reason.
 const avoidIcon = pr => avoidOf(pr).length ? `<button type="button" class="ibtn xbtn" data-info="x|${pr.id}|a" aria-label="Do not combine (${avoidOf(pr).length})">${ICON_AVOID}</button>` : '';
 function showInfo(key){
@@ -628,7 +641,7 @@ function fix(s){
     if (p.dir !== 'desc') p.dir = 'asc';
     p.vals = Array.isArray(p.vals) ? p.vals : [];
   });
-  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; pr.must = pr.must || {}; pr.sets = pr.sets || {}; pr.hard = pr.hard || {}; pr.avail = pr.avail || {}; pr.requires = Array.isArray(pr.requires) ? pr.requires : []; if (pr.link == null) pr.link = ''; });
+  s.products.forEach(pr => { pr.ranges = pr.ranges || {}; pr.flags = pr.flags || {}; pr.rel = pr.rel || {}; pr.must = pr.must || {}; pr.sets = pr.sets || {}; pr.hard = pr.hard || {}; pr.avail = pr.avail || {}; pr.requires = Array.isArray(pr.requires) ? pr.requires : []; pr.avoidP = Array.isArray(pr.avoidP) ? pr.avoidP : []; if (pr.link == null) pr.link = ''; });
   s.parameters.forEach(p => {
     if (!p.reason) {   // reasoning previously kept at the end of the description
       const d = p.details || '', k = d.indexOf('Reasoning:');
@@ -643,7 +656,9 @@ function fix(s){
   // Do-not-combine pairs: kept symmetric, limited to existing products.
   const ids = new Set(s.products.map(pr => pr.id));
   s.products.forEach(pr => { pr.avoid = [...new Set((Array.isArray(pr.avoid) ? pr.avoid : []).filter(x => ids.has(x) && x !== pr.id))]; if (pr.avoidNote == null) pr.avoidNote = ''; });
-  s.products.forEach(pr => pr.requires = [...new Set(pr.requires.filter(x => ids.has(x) && x !== pr.id))]);
+  const pids = new Set(s.parameters.map(p => p.id));
+  s.products.forEach(pr => { pr.requires = [...new Set(pr.requires.filter(x => pids.has(x)))]; pr.avoidP = [...new Set(pr.avoidP.filter(x => pids.has(x)))];
+    Object.keys(pr.avail).forEach(k => { if (!pids.has(k) || !AV[pr.avail[k]]) delete pr.avail[k]; }); });
   s.products.forEach(pr => pr.avoid.forEach(x => { const o = s.products.find(q => q.id === x); if (!o.avoid.includes(pr.id)) o.avoid.push(pr.id); }));
   s.parameters.forEach(p => { p.vals = (p.vals || []).filter(v => v && typeof v === 'object'); });
   // Number (Variable) lists saved as plain numbers become listed values; references move to the value ids.
@@ -1024,7 +1039,10 @@ function rank(){
       if (over) fails.push(p.name + ' (limit)');
       fits[p.id] = {s, st, d, v, r, w, excluded: !(w > 0), must, req: !!p.req, av: avOf(pr, p), over, ht: hardText(pr, p)};
     });
-    return {pr, score: ws ? ss / ws : 0, pts: ss / 100, tot: ws, within, n, fits, fails, unsuit: fails.length > 0};
+    // Possible mismatches (parameters in use that the product should not be combined with) and
+    // possibly missing parameters (required by the product, not in use). Notices only; the score is unchanged.
+    const mis = (pr.avoidP || []).filter(x => inUse(P(x))), miss = (pr.requires || []).filter(x => P(x) && condMet(P(x)) && !inUse(P(x)));   // a conditional parameter counts only while its condition is met
+    return {pr, score: ws ? ss / ws : 0, pts: ss / 100, tot: ws, within, n, fits, fails, unsuit: fails.length > 0, mis, miss};
   });
   res.sort((a, b) => (a.unsuit - b.unsuit) || b.score - a.score || b.n - a.n || b.within - a.within || S.products.indexOf(a.pr) - S.products.indexOf(b.pr));
   return {res, act};
@@ -1460,9 +1478,9 @@ function listCard(id, i, n, title, meta, metaWarn, desc, chips, cls = '', kind =
     <div class="lbody" data-act="edit" data-id="${id}">
       <div class="tline"><b class="ltitle" data-field="name">${esc(title)}</b>${infoIcons(kind === 'params' ? 'p' : 'r', id, !!desc, !!reason)}${kind === 'products' ? avoidIcon(S.products.find(x => x.id === id)) : ''}</div>
       ${meta ? `<div class="xsmall ${metaWarn ? 'warn-text' : 'muted'}">${meta}</div>` : ''}
-      <div class="chips ${kind === 'params' ? 'wrap' : 'sync'}">${chips}</div>${extra}
+      <div class="chips ${kind === 'params' ? 'wrap' : 'sync'}">${chips}</div>
     </div>
-    <div class="acts"><button data-act="dup" data-id="${id}">Duplicate</button><button class="danger" data-act="del" data-id="${id}">Delete</button></div>
+    <div class="acts"><button data-act="dup" data-id="${id}">Duplicate</button><button class="danger" data-act="del" data-id="${id}">Delete</button></div>${extra}
   </div>`;
 }
 const chip = (label, val, cls = '', field = '') => `<div class="chip ${cls}"${field ? ` data-field="${field}"` : ''}><span class="muted">${label}</span><b>${val}</b></div>`;
@@ -1741,7 +1759,8 @@ function matchSectionToggled(key, open){
 // Tile: name and weight; description and units; value (tap to type) between the range ends; slider (lowest).
 function inputCard(p){
   const v = S.inputs[p.id];
-  const top = `<div class="top"><b>${esc(p.name)}</b>${infoIcons('p', p.id, !!p.details, !!p.reason)}<button type="button" class="preset" data-preset="${p.id}" aria-label="Reset – leave out of ranking">${ICON_RESET}</button><span class="spacer"></span><button type="button" class="reqbtn ${p.req ? 'on' : ''}" data-req="${p.id}" aria-pressed="${!!p.req}">${p.req ? 'Required' : 'Preferred'}</button><span class="xsmall wt">Weight: ${p.weight}</span></div>`;
+  const top = `<div class="top"><b>${esc(p.name)}</b>${infoIcons('p', p.id, !!p.details, !!p.reason)}<button type="button" class="preset" data-preset="${p.id}" aria-label="Reset – leave out of ranking">${ICON_RESET}</button><span class="spacer"></span>${p.reqSw ? `<button type="button" class="reqbtn ${p.req ? 'on' : ''}" data-req="${p.id}" aria-pressed="${!!p.req}">${p.req ? 'Required' : 'Preferred'}</button>` : ''}<span class="xsmall wt">Weight: ${p.weight}</span></div>
+    <div class="pnote" data-pnote="${p.id}" hidden></div>`;
   const desc = '';
   const u = p.unit ? `<span class="unit">${p.unit === '%' ? '%' : ' ' + esc(p.unit)}</span>` : '';
   const pending = !(S.entered || []).includes(p.id);
@@ -1798,6 +1817,13 @@ function updateMatch(){
   const anyRel = res.some(r => r.n > 0);
   const box = $('#result');
   const shown = act.length && anyRel ? (res.find(r => r.pr.id === S.selectedId) || res[0]) : null;
+  // Input tiles: possible mismatch / possibly missing for the product shown in Result.
+  view.querySelectorAll('[data-pnote]').forEach(el => {
+    const id = el.dataset.pnote, x = shown && shown.mis.includes(id), m = shown && shown.miss.includes(id);
+    el.className = 'pnote ' + (x ? 'x' : 'm');
+    el.textContent = x ? `⚠ Possible mismatch – ${shown.pr.name} is not combinable with this parameter` : m ? `Possibly missing – required by ${shown.pr.name}` : '';
+    el.hidden = !(x || m);
+  });
   if (!act.length) {
     box.innerHTML = `<div class="card empty muted"><div class="big">☝️</div>Move a slider, enter a value or select an option above to see the best match.</div>`;
   } else if (!anyRel) {
@@ -1824,7 +1850,7 @@ function updateMatch(){
           <circle cx="75" cy="75" r="64" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - shown.score / 100)}" style="transition:stroke-dashoffset .4s"/></svg>
           <div class="v"><b>${Math.round(shown.score)}%</b><span class="xsmall muted">match score</span><span class="xsmall muted">(score: ${fmt(shown.pts)} of ${fmt(shown.tot)})</span></div></div>
         <div class="summary"><div class="tag">${isBest ? 'BEST MATCH' : 'SELECTED PRODUCT'}</div>
-          <div class="pname">${esc(shown.pr.name)}${infoIcons('r', shown.pr.id, !!shown.pr.notes, false)}</div>${prodLines(shown.pr)}
+          <div class="pname">${esc(shown.pr.name)}${infoIcons('r', shown.pr.id, !!shown.pr.notes, false)}</div>${prodLines(shown.pr, shown)}
           ${shown.unsuit ? `<div class="xwarn nsuit">✕ Not suitable – must-match not met: ${esc(shown.fails.join(', '))}${isBest ? '<span class="xn">No product meets every must-match parameter for these inputs.</span>' : ''}</div>` : ''}
           ${shown.pr.link ? `<a class="btn primary linkbtn" href="${esc(shown.pr.link)}" target="_blank" rel="noopener noreferrer">Open product link ↗</a>` : ''}</div>
       </div>
@@ -1843,12 +1869,12 @@ function updateMatch(){
       else if (isBool(p)) val = r.pr.flags[p.id] ? BL[r.pr.flags[p.id]] : '—';
       else val = esc(rangeText(r.pr, p));
       const mm = rel && r.pr.must && r.pr.must[p.id];
-      return `<div class="chip ${!rel || !scored ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''} ${p.req ? 'req' : ''}" data-pc="${p.id}"><span class="muted">${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${rel && !val.startsWith('—') ? avMark(avOf(r.pr, p)) : ''}${val}</b></div>`;
+      return `<div class="chip ${!rel || !scored ? 'na' : f ? f.st : ''} ${mm ? 'must' : ''} ${p.req ? 'req' : ''}" data-pc="${p.id}"><span class="muted">${rel ? avMark(avOf(r.pr, p)) : ''}${mm ? '◆ ' : ''}${esc(p.name)}</span><b>${val}</b></div>`;
     }).join('');
     const xc = scored && shown && conflicts(shown.pr, r.pr), na = avoidOf(r.pr).length;
     return `<div class="card item ${scored && r === shown ? 'sel' : ''} ${xc ? 'xconf' : ''} ${scored && r.unsuit ? 'unsuit' : ''} ${scored ? '' : 'unscored'}" data-row="${r.pr.id}">
       <div class="rank">${scored ? `<div class="badge ${i === 0 ? 'first' : ''}">${i + 1}</div>` : ''}
-        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${prodLines(r.pr)}
+        <div style="flex:1;min-width:0"><b>${esc(r.pr.name)}</b>${infoIcons('r', r.pr.id, !!r.pr.notes, false)}${prodLines(r.pr, scored ? r : null)}
           ${xc ? `<div><span class="xtag">⚠ Do not combine with ${esc(shown.pr.name)}</span></div>` : ''}
           ${scored && r.unsuit ? `<div><span class="ntag">✕ Not suitable: ${esc(r.fails.join(', '))}</span></div>` : ''}
 </div>
@@ -1871,13 +1897,13 @@ function fitRow(p, f){
   if (isMulti(p)) {
     const lab = a => (a || []).map(id => vlabel(p, id)).filter(Boolean).join(', ');
     const txt = f.excluded ? 'Not relevant' : f.st === 'missing' ? 'No data' : f.st === 'within' ? 'All match' : `${f.d} of ${f.v.length} match`;
-    return `<div class="fit ${f.req ? 'req' : ''}" data-fp="${p.id}"><div class="row"><b class="small">${f.excluded || f.st === 'missing' ? '' : avMark(f.av)}${f.req ? '<span class="rq">Required</span>' : ''}${esc(p.name)}</b>
+    return `<div class="fit ${f.req ? 'req' : ''}" data-fp="${p.id}"><div class="row"><b class="small">${f.excluded ? '' : avMark(f.av)}${f.req ? '<span class="rq">Required</span>' : ''}${esc(p.name)}</b>
       <span class="xsmall muted">Input ${esc(lab(f.v))} · Product ${f.r ? esc(lab(f.r)) : '—'} · ${wl}</span>
       <span class="st c-${st}">${txt}</span></div></div>`;
   }
   if (isBool(p)) {
     const txt = f.excluded ? 'Not relevant' : f.st === 'within' ? 'Matches' : f.st === 'missing' ? 'No data' : 'Does not match';
-    return `<div class="fit ${f.req ? 'req' : ''}" data-fp="${p.id}"><div class="row"><b class="small">${f.excluded || f.st === 'missing' ? '' : avMark(f.av)}${f.req ? '<span class="rq">Required</span>' : ''}${esc(p.name)}</b>
+    return `<div class="fit ${f.req ? 'req' : ''}" data-fp="${p.id}"><div class="row"><b class="small">${f.excluded ? '' : avMark(f.av)}${f.req ? '<span class="rq">Required</span>' : ''}${esc(p.name)}</b>
       <span class="xsmall muted">Input ${BL[f.v]} · Product ${f.r ? BL[f.r] : '—'} · ${wl}</span>
       <span class="st c-${st}">${txt}</span></div></div>`;
   }
@@ -1891,7 +1917,7 @@ function fitRow(p, f){
   const cl = x => Math.max(lo, Math.min(hi, x));   // open-ended ranges run to the edge of the track
   const band = f.r && !f.excluded ? `<div class="band" style="left:${pos(cl(f.r[0]))}%;width:${Math.max(pos(cl(f.r[1])) - pos(cl(f.r[0])), 1.5)}%"></div>` : '';
   const rt = r => !isFinite(r[0]) ? '≤ ' + (isVar(p) ? labOfNum(p, r[1]) : fmt(r[1])) : !isFinite(r[1]) ? '≥ ' + (isVar(p) ? labOfNum(p, r[0]) : fmt(r[0])) : isVar(p) ? varSpan(p, r[0], r[1]) : fmt(r[0]) + '–' + fmt(r[1]);
-  return `<div class="fit ${f.req ? 'req' : ''}" data-fp="${p.id}"><div class="row"><b class="small">${f.excluded || f.st === 'missing' ? '' : avMark(f.av)}${f.req ? '<span class="rq">Required</span>' : ''}${esc(p.name)}</b>
+  return `<div class="fit ${f.req ? 'req' : ''}" data-fp="${p.id}"><div class="row"><b class="small">${f.excluded ? '' : avMark(f.av)}${f.req ? '<span class="rq">Required</span>' : ''}${esc(p.name)}</b>
     <span class="xsmall muted">${f.r && !f.excluded ? esc(rt(f.r)) + (isVar(p) ? '' : ' ' + esc(p.unit)) + ' · ' : ''}${esc(wl)}</span>
     <span class="st c-${st}">${esc(txt)}</span></div>
     <div class="track">${band}<div class="marker b-${st}" style="left:${pos(f.v)}%"></div></div>${lim}</div>`;
@@ -2011,7 +2037,8 @@ function editParam(id, field){
     <div class="field" id="defBoolWrap"><label>Default value (optional)</label>
       <select id="fDefB"><option value="">Blank</option><option value="yes" ${p.def === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.def === 'no' ? 'selected' : ''}>No</option></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
-    <div class="field" id="reqWrap"><label class="switch"><input type="checkbox" id="fReq" ${p.req ? 'checked' : ''}><span class="sw"></span><span>Required (overrides weight)</span></label>
+    <div class="field" id="reqWrap"><label class="switch"><input type="checkbox" id="fReqSw" ${p.reqSw ? 'checked' : ''}><span class="sw"></span><span>Show Required / Preferred switch on the Match tile</span></label>
+      <label class="switch" style="margin-top:8px"><input type="checkbox" id="fReq" ${p.req ? 'checked' : ''}><span class="sw"></span><span>Required (overrides weight)</span></label>
       <div class="xsmall muted" style="margin:5px 2px">Required: a product whose values do not include the input is marked Not suitable and ranked last. Preferred (off): scored by weight. Also switchable on the Match tile.</div></div>
     <div class="field" id="condWrap"><label>Show only when (conditional parameter)</label>
       ${kidsOf(p).length && id ? `<div class="small muted">This parameter controls ${esc(kidsOf(p).map(c => c.name).join(', '))}, so it cannot itself be conditional.</div><select id="fCondOn" style="display:none"><option value=""></option></select>`
@@ -2083,7 +2110,7 @@ function editParam(id, field){
         slider: type === 'boolean' ? true : $('#fSlider').checked,
         stepAck: type === 'number' || type === 'percent' ? stepAck : null,
         byValue: numVar && $('#fByVal').checked,
-        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(), cond, req: $('#fReq').checked,
+        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(), cond, req: $('#fReq').checked, reqSw: $('#fReqSw').checked,
         multi: (textList || numVar) && $('#fMulti').checked, maxSel: (textList || numVar) && $('#fMulti').checked && num($('#fMaxSel').value) >= 1 ? Math.round(num($('#fMaxSel').value)) : null});
       syncSets(S); checkConds(S);
       // Keep references valid: deleted listed values are cleared; numbers move to the parameter's resolution.
@@ -2404,7 +2431,7 @@ function editProduct(id, field){
       <div class="psum xsmall muted" data-psum="${p.id}"></div>
       <div class="pbody">${body}<div class="xsmall" data-pwarn="${p.id}" style="margin:5px 2px 0"></div>
         <label class="mustcb"><input type="checkbox" data-must="${p.id}" ${pr.must && pr.must[p.id] ? 'checked' : ''}><span><b>◆ Must match</b> <span class="muted">– an input outside these values marks the product Not suitable</span></span></label>
-        <div class="avsel" data-avsel="${p.id}" role="radiogroup" aria-label="Availability">${Object.keys(AV).map(a => `<button type="button" class="av-${a} ${avOf(pr, p) === a ? 'on' : ''}" data-avv="${a}" role="radio" aria-checked="${avOf(pr, p) === a}">${avMark(a)}${AV[a]}</button>`).join('')}</div></div>
+        <div class="avsel" data-avsel="${p.id}" role="radiogroup" aria-label="Availability">${Object.keys(AV).map(a => `<button type="button" class="av-${a} ${avOf(pr, p) === a ? 'on' : ''}" data-avv="${a}" role="radio" aria-checked="${avOf(pr, p) === a}">${avMark(a)}${AV[a]}</button>`).join('')}<span class="avnone xsmall muted" ${avOf(pr, p) ? 'hidden' : ''}>No information</span></div></div>
       <div class="offnote xsmall muted">Not relevant to this product (weight 0).</div>
       ${p.cond ? `<div class="xsmall condnote">Shown when ${esc(condText(p))}</div>` : ''}
     </div>`;
@@ -2420,15 +2447,19 @@ function editProduct(id, field){
     <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
     <div class="field"><label>Link (optional)</label><input id="fLink" type="url" inputmode="url" autocapitalize="off" autocorrect="off" value="${esc(pr.link || '')}" placeholder="https://…">
       <div class="xsmall muted" style="margin:5px 2px">Opened from the Result section on the Match screen.</div></div>
-    <details class="field plist" id="avWrap"><summary><span class="plh">⚠ Do not combine with:</span> <span id="avSum" class="pls"></span></summary>
+    <details class="field plist" id="avWrap"><summary><span class="plh">⚠ Do not combine with products:</span> <span id="avSum" class="pls"></span></summary>
       ${S.products.some(o => o.id !== pr.id) ? `<div class="xchips" id="avList">${S.products.filter(o => o.id !== pr.id).map(o => { const on = (pr.avoid || []).includes(o.id);
         return `<button type="button" class="xchip ${on ? 'on' : ''}" data-av="${o.id}" aria-pressed="${on}">${on ? '⚠ ' : ''}${esc(o.name)}</button>`; }).join('')}</div>` : '<div class="xsmall muted">Add other products first.</div>'}
       <textarea id="fAvNote" style="margin-top:8px;min-height:60px" placeholder="Reason, e.g. silver inactivates collagenase (per manufacturer instructions)">${esc(pr.avoidNote || '')}</textarea>
       <div class="xsmall muted" style="margin:5px 2px">Tap a product to mark that the two should not be used together; the mark applies to both products and is shown on the Match screen.</div></details>
+    <details class="field plist" id="apWrap"><summary><span class="plh">Do not combine with:</span> <span id="apSum" class="pls"></span></summary>
+      <div class="xchips" id="apList">${paramOrder().map(o => { const on = (pr.avoidP || []).includes(o.id);
+        return `<button type="button" class="xchip ${on ? 'on' : ''}" data-ap="${o.id}" aria-pressed="${on}">${esc(o.name)}</button>`; }).join('')}</div>
+      <div class="xsmall muted" style="margin:5px 2px">Parameters this product is not configurable with. When one is in use on the Match screen (entered; Y/N set to Yes), the product and that input are flagged as a possible mismatch.</div></details>
     <details class="field plist" id="rqWrap"><summary><span class="plh">Requires:</span> <span id="rqSum" class="pls"></span></summary>
-      ${S.products.some(o => o.id !== pr.id) ? `<div class="xchips" id="rqList">${S.products.filter(o => o.id !== pr.id).map(o => { const on = (pr.requires || []).includes(o.id);
-        return `<button type="button" class="xchip mchip ${on ? 'on' : ''}" data-rq="${o.id}" aria-pressed="${on}">${esc(o.name)}</button>`; }).join('')}</div>` : '<div class="xsmall muted">Add other products first.</div>'}
-      <div class="xsmall muted" style="margin:5px 2px">Products that must be used with this one (for example a secondary dressing). Shown under the product's name on the Match screen.</div></details>
+      <div class="xchips" id="rqList">${paramOrder().map(o => { const on = (pr.requires || []).includes(o.id);
+        return `<button type="button" class="xchip mchip ${on ? 'on' : ''}" data-rq="${o.id}" aria-pressed="${on}">${esc(o.name)}</button>`; }).join('')}</div>
+      <div class="xsmall muted" style="margin:5px 2px">Parameters this product requires. When one is not in use on the Match screen, the product and that input are flagged as possibly missing.</div></details>
     <div class="sec-h" style="margin:4px 2px 8px"><label class="small muted" style="font-weight:600">Parameters – check each one relevant to this product and enter its weight (0–10)</label></div>
     <div class="row" style="justify-content:space-between;margin:-4px 0 8px"><button type="button" class="link" id="pExpand">Expand all</button><button type="button" class="link" id="pCollapse">Collapse all</button></div>
     ${fields}
@@ -2464,8 +2495,9 @@ function editProduct(id, field){
       }
       const avoid = [...document.querySelectorAll('#avList .xchip.on')].map(b => b.dataset.av);
       const requires = [...document.querySelectorAll('#rqList .xchip.on')].map(b => b.dataset.rq);
-      const avail = {}; document.querySelectorAll('[data-avsel]').forEach(g => { const a = (g.querySelector('.on') || {}).dataset; if (a && a.avv && a.avv !== 'std') avail[g.dataset.avsel] = a.avv; });
-      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, must, sets: Object.assign(pr.sets || {}, sets), hard, avail, requires, avoid, avoidNote: $('#fAvNote').value.trim()});
+      const avoidP = [...document.querySelectorAll('#apList .xchip.on')].map(b => b.dataset.ap);
+      const avail = {}; document.querySelectorAll('[data-avsel]').forEach(g => { const a = (g.querySelector('.on') || {}).dataset; if (a && a.avv) avail[g.dataset.avsel] = a.avv; });
+      Object.assign(pr, {name, link: normLink($('#fLink').value), notes: $('#fNotes').value.trim(), ranges, flags, rel, must, sets: Object.assign(pr.sets || {}, sets), hard, avail, requires, avoidP, avoid, avoidNote: $('#fAvNote').value.trim()});
       if (!id) S.products.push(pr);
       S.products.forEach(o => { if (o === pr) return; const has = (o.avoid || []).includes(pr.id), want = avoid.includes(o.id);
         if (want && !has) (o.avoid = o.avoid || []).push(pr.id); if (!want && has) o.avoid = o.avoid.filter(x => x !== pr.id); });
@@ -2545,11 +2577,15 @@ function editProduct(id, field){
       });
       // Collapsed lists: the selected products are written in the heading.
       const avCount = () => { const t = [...document.querySelectorAll('#avList .xchip.on')].map(b => S.products.find(o => o.id === b.dataset.av).name); $('#avSum').textContent = t.length ? t.join(', ') : 'None'; };
-      const rqCount = () => { const t = [...document.querySelectorAll('#rqList .xchip.on')].map(b => S.products.find(o => o.id === b.dataset.rq).name); $('#rqSum').textContent = t.length ? t.join(', ') : 'None'; };
-      document.querySelectorAll('#rqList .xchip').forEach(b => b.onclick = () => { const on = !b.classList.contains('on'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); rqCount(); });
-      rqCount();
+      const pSum = (list, key, sum) => { const t = [...document.querySelectorAll(list + ' .xchip.on')].map(b => P(b.dataset[key]).name); $(sum).textContent = t.length ? t.join(', ') : 'None'; };
+      [['#rqList', 'rq', '#rqSum'], ['#apList', 'ap', '#apSum']].forEach(([list, key, sum]) => {
+        document.querySelectorAll(list + ' .xchip').forEach(b => b.onclick = () => { const on = !b.classList.contains('on'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); pSum(list, key, sum); });
+        pSum(list, key, sum);
+      });
       document.querySelectorAll('[data-avsel] [data-avv]').forEach(b => b.onclick = () => {
-        b.parentElement.querySelectorAll('[data-avv]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+        const was = b.classList.contains('on');   // tapping the selected one again clears it (No information)
+        b.parentElement.querySelectorAll('[data-avv]').forEach(x => { const on = x === b && !was; x.classList.toggle('on', on); x.setAttribute('aria-checked', on); });
+        const g = b.parentElement, nt = g.querySelector('.avnone'); if (nt) nt.hidden = !!g.querySelector('.on');
       });
       // A field that needs attention inside a collapsed controlling parameter: open the controlling one.
       document.querySelectorAll('.psubs .pfield:not(.collapsed)').forEach(f => { const up = f.parentElement.closest('.pfield'); if (up) up.classList.remove('collapsed'); });
@@ -2661,7 +2697,7 @@ function parseType(t, unit){
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(d = S){
   const rows = [['[SETTINGS]'], ['Title', d.title], [], ['[PARAMETERS]'],
-    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning', 'Condition Parameter', 'Condition', 'Ranking']];
+    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning', 'Condition Parameter', 'Condition', 'Ranking', 'Ranking Switch']];
   d.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isList(p) ? '' : plain(p.min), isList(p) ? '' : plain(p.max),
     isBool(p) || p.type === 'text' ? '' : isNumVar(p) ? 'Variable' : plain(resOf(p)),
@@ -2672,10 +2708,11 @@ function toCSV(d = S){
     isBool(p) ? '' : (p.slider === false ? 'No' : 'Yes'),
     isBool(p) || isList(p) ? '' : ROUND[p.round],
     p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details, p.reason || '',
-    p.cond ? (d.parameters.find(x => x.id === p.cond.on) || {}).name || '' : '', p.cond ? condText(p, d.parameters, true) : '', p.req ? 'Required' : 'Preferred']));
+    p.cond ? (d.parameters.find(x => x.id === p.cond.on) || {}).name || '' : '', p.cond ? condText(p, d.parameters, true) : '', p.req ? 'Required' : 'Preferred', p.reqSw ? 'Shown' : '']));
   rows.push([], ['[PRODUCTS]']);
-  const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note', 'Requires'];
-  const avCol = p => d.products.some(pr => pr.avail && pr.avail[p.id] && pr.avail[p.id] !== 'std');
+  const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note', 'Do Not Combine Parameters', 'Requires'];
+  const avCol = p => d.products.some(pr => pr.avail && pr.avail[p.id]);
+  const pn = ids => (ids || []).map(x => (d.parameters.find(q => q.id === x) || {}).name).filter(Boolean).join('; ');
   const mustCol = p => d.products.some(pr => pr.must && pr.must[p.id]);
   const hardCol = p => hardOK(p) && d.products.some(pr => pr.hard && pr.hard[p.id]);
   d.parameters.forEach(p => {
@@ -2685,7 +2722,7 @@ function toCSV(d = S){
   rows.push(h);
   d.products.forEach(pr => {
     const r = [pr.name, pr.notes, pr.link || '', (pr.avoid || []).map(x => (d.products.find(q => q.id === x) || {}).name).filter(Boolean).join('; '), pr.avoidNote || '',
-      (pr.requires || []).map(x => (d.products.find(q => q.id === x) || {}).name).filter(Boolean).join('; ')];
+      pn(pr.avoidP), pn(pr.requires)];
     d.parameters.forEach(p => {
       if (isBool(p)) r.push(pr.flags[p.id] ? BL[pr.flags[p.id]] : '');
       else if (isMulti(p)) r.push(((pr.sets || {})[p.id] || []).map(id => vlabel(p, id)).filter(Boolean).join('; '));
@@ -2693,7 +2730,7 @@ function toCSV(d = S){
       else { const v = pr.ranges[p.id] || [null, null]; r.push(plain(v[0]), plain(v[1])); }
       r.push(plain(wOf(pr, p)));
       if (mustCol(p)) r.push(pr.must && pr.must[p.id] ? 'Yes' : '');
-      if (avCol(p)) r.push(AV[avOf(pr, p)]);
+      if (avCol(p)) r.push(avOf(pr, p) ? AV[avOf(pr, p)] : '');
       if (hardCol(p)) { const hh = (pr.hard || {})[p.id] || [null, null]; r.push(plain(hh[0]), plain(hh[1])); }
     });
     rows.push(r);
@@ -2721,7 +2758,8 @@ function splitBound(h){
 }
 function fromCSV(text){
   const rows = parseRows(text), out = {title: '', parameters: [], products: []}, notes = [];
-  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, linkIdx = -1, avIdx = -1, avnIdx = -1, rqIdx = -1, adjusted = 0;
+  let section = '', pHead = null, cols = null, nameIdx = 0, notesIdx = -1, linkIdx = -1, avIdx = -1, avnIdx = -1, rqIdx = -1, apIdx = -1, adjusted = 0;
+  const apNames = new Map();
   const rqNames = new Map();
   const avNames = new Map();
   const unknown = new Set();
@@ -2771,11 +2809,12 @@ function fromCSV(text){
       const cp = String(col(['condition parameter', 'shown when', 'condition on']) ?? '').trim();
       if (cp) np._cond = [cp, String(col(['condition', 'condition value']) ?? '').trim()];
       np.req = /^req/i.test(String(col(['ranking', 'required']) ?? '').trim());
+      np.reqSw = /^(show|yes|on|true)/i.test(String(col(['ranking switch']) ?? '').trim());
       np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : isVar(np) ? labId(np, dv) : conformValue(np, num(dv));
     }
     else if (section === '[PRODUCTS]') {
       if (!cols) {
-        cols = []; nameIdx = 0; notesIdx = -1; linkIdx = -1; avIdx = -1; avnIdx = -1; rqIdx = -1;
+        cols = []; nameIdx = 0; notesIdx = -1; linkIdx = -1; avIdx = -1; avnIdx = -1; rqIdx = -1; apIdx = -1;
         row.forEach((raw, i) => {
           const h = raw.trim(), l = h.toLowerCase();
           if (['product', 'name', 'model'].includes(l)) nameIdx = i;
@@ -2783,7 +2822,8 @@ function fromCSV(text){
           else if (['link', 'url', 'website'].includes(l)) linkIdx = i;
           else if (['do not combine', 'do not combine with', 'avoid', 'incompatible with'].includes(l)) avIdx = i;
           else if (['combination note', 'combination reason', 'do not combine note'].includes(l)) avnIdx = i;
-          else if (['requires', 'required products', 'use with'].includes(l)) rqIdx = i;
+          else if (['requires', 'required parameters', 'use with'].includes(l)) rqIdx = i;
+          else if (['do not combine parameters', 'do not combine with parameters'].includes(l)) apIdx = i;
           else { const b = splitBound(h); if (b) {
             let p = findP(b[0]);
             if (!p) {
@@ -2801,13 +2841,14 @@ function fromCSV(text){
       if (!name) continue;
       const pr = {id: uid('r'), name, notes: notesIdx >= 0 ? (row[notesIdx] || '').trim() : '', link: linkIdx >= 0 ? normLink(row[linkIdx]) : '', ranges: {}, flags: {}, rel: {}, avoid: [], avoidNote: avnIdx >= 0 ? (row[avnIdx] || '').trim() : ''};
       if (rqIdx >= 0) rqNames.set(pr, String(row[rqIdx] || '').split(/[;|]/).map(t => t.trim()).filter(Boolean));
+      if (apIdx >= 0) apNames.set(pr, String(row[apIdx] || '').split(/[;|]/).map(t => t.trim()).filter(Boolean));
       if (avIdx >= 0) avNames.set(pr, String(row[avIdx] || '').split(/[;|]/).map(t => t.trim()).filter(Boolean));
       cols.forEach(([i, p, k]) => {
         const c = row[i];
         if (k === 'w') { const n = num(c); if (n != null) pr.rel[p.id] = n > 0 ? {on: true, w: Math.min(10, n)} : {on: false, w: null}; }
         else if (k === 'v') { if (isBool(p)) { const b = parseBool(c); if (b) pr.flags[p.id] = b; } }
         else if (k === 'm') { if (parseBool(c) === 'yes') (pr.must = pr.must || {})[p.id] = true; }
-        else if (k === 'av') { const t = String(c || '').toLowerCase(); const a = /not/.test(t) ? 'na' : /option/.test(t) ? 'opt' : null; if (a) (pr.avail = pr.avail || {})[p.id] = a; }
+        else if (k === 'av') { const t = String(c || '').toLowerCase(); const a = /not/.test(t) ? 'na' : /option/.test(t) ? 'opt' : /standard/.test(t) ? 'std' : null; if (a) (pr.avail = pr.avail || {})[p.id] = a; }
         else if (k === 'hl' || k === 'hh') { const n = num(c); if (n != null) { pr.hard = pr.hard || {}; const h = pr.hard[p.id] || [null, null]; h[k === 'hl' ? 0 : 1] = n; pr.hard[p.id] = h; } }
         else if (k === 's') { if (isVar(p)) { pr.sets = pr.sets || {}; pr.sets[p.id] = String(c ?? '').split(/[;|]/).map(t => t.trim()).filter(Boolean).map(t => { const id = labId(p, t); if (!id) unknown.add(`${p.name}: "${t}"`); return id; }).filter(Boolean); } }
         else if (isVar(p)) { const r = pr.ranges[p.id] || [null, null], t = String(c ?? '').trim(); r[k] = labId(p, t); if (t && r[k] == null) unknown.add(`${p.name}: "${t}"`); pr.ranges[p.id] = r; }
@@ -2817,7 +2858,9 @@ function fromCSV(text){
     }
   }
   const missAv = new Set();
-  rqNames.forEach((names, pr) => { pr.requires = names.map(nm => (out.products.find(q => q.name.toLowerCase() === nm.toLowerCase()) || {}).id).filter(x => x && x !== pr.id); });
+  const pid = nm => (out.parameters.find(q => q.name.toLowerCase() === nm.toLowerCase()) || {}).id;
+  rqNames.forEach((names, pr) => { pr.requires = names.map(pid).filter(Boolean); });
+  apNames.forEach((names, pr) => { pr.avoidP = names.map(pid).filter(Boolean); });
   avNames.forEach((names, pr) => names.forEach(nm => { const o = out.products.find(q => q.name.toLowerCase() === nm.toLowerCase()); if (o && o !== pr) pr.avoid.push(o.id); else if (!o) missAv.add(nm); }));
   if (missAv.size) notes.push(`Do-not-combine names not found among the products were ignored: ${[...missAv].slice(0, 5).join(', ')}${missAv.size > 5 ? '…' : ''}`);
   if (unknown.size) notes.push(`Values not in the parameter's list were left blank: ${[...unknown].slice(0, 5).join(', ')}${unknown.size > 5 ? '…' : ''}`);

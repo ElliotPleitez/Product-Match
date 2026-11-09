@@ -119,15 +119,20 @@ Settings ▸ Data ▸ **Profiles** holds any number of uniquely named profiles. 
 
 ## Do-not-combine products
 
-In the product editor, **⚠ Do not combine with:** is a collapsed list (the selected products are written in its heading; it opens only when tapped). Tap a product to mark that the two should not be used together (applies to both products), and add the reason. In Result and All Products, a red line **Do not combine with: …** is shown below the product's name; tap it (ⓘ) for the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
+In the product editor, **⚠ Do not combine with products:** is a collapsed list (the selected products are written in its heading; it opens only when tapped). Tap a product to mark that the two should not be used together (applies to both products), and add the reason. In Result and All Products, a red line **Do not combine with products: …** is shown below the product's name; tap it (ⓘ) for the reason. In All Products, rows that conflict with the selected or best product are outlined in red and tagged. CSV product columns: `Do Not Combine` (product names separated by semicolons) and `Combination Note`.
 
-## Requires
+## Parameter checks: Do not combine with / Requires
 
-**Requires:** in the product editor is a second collapsed list of products that must be used with this one (for example a secondary dressing). It is shown as its own line, **Requires: …**, below the product's name in Result and All Products. CSV product column: `Requires` (names separated by semicolons).
+The product editor has two more collapsed lists that reference parameters:
+
+- **Do not combine with:** parameters the product is not configurable with. When one is in use on the Match screen (entered and, for Y/N, set to Yes), it is flagged as a possible mismatch.
+- **Requires:** parameters the product needs. When one is not in use (a conditional parameter counts only while its condition is met), it is flagged as possibly missing.
+
+Both appear as their own lines below the product's name in Result and All Products, with the flagged parameters highlighted, and the matching Input Parameter tile shows a notice for the product shown in Result. These are notices only; the score is not changed. CSV product columns: `Do Not Combine Parameters` and `Requires` (parameter names separated by semicolons).
 
 ## Availability
 
-Below **◆ Must match** each relevant parameter has **Standard / Available as option / Not available** (default Standard). Result and All Products mark the product's value with a green ✓ (Standard), yellow ✓ (Available as option) or gray – (Not available); no mark is shown where the product has no data. Availability is informational and does not change the score. CSV product column: `<Parameter> Availability`, written only for parameters that use a non-standard value.
+Below **◆ Must match** each relevant parameter has **Standard / Available as option / Not available**. None is selected by default (No information); tap the selected one again to clear it. When one is selected, Result and All Products show a check left of the parameter name: green (Standard), yellow (Available as option) or gray (Not available). Availability is informational and does not change the score. CSV product column: `<Parameter> Availability` (blank = No information), written only for parameters that use it.
 
 ## Must match
 
@@ -159,7 +164,7 @@ In the product editor, each Number or % parameter checks the range against its h
 
 ## Required / Preferred
 
-The parameter editor has **Required (overrides weight)**; the same switch is on each Match tile beside **Weight**. Required: any product whose values do not include the input is marked **✕ Not suitable** and ranked last, regardless of weight. Preferred: scored by weight as usual. Required parameters are shaded purple in Result and All Products. CSV parameter column: `Ranking` (Required / Preferred).
+The parameter editor has **Required (overrides weight)** and a separate switch, **Show Required / Preferred switch on the Match tile** (default off). When that is on, the Required / Preferred pill appears on the tile beside **Weight**. Required: any product whose values do not include the input is marked **✕ Not suitable** and ranked last, regardless of weight. Preferred: scored by weight as usual. Required parameters are shaded purple in Result and All Products. CSV parameter columns: `Ranking` (Required / Preferred) and `Ranking Switch` (Shown / blank).
 
 ## Reset a parameter
 
