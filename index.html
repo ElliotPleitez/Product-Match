@@ -400,6 +400,17 @@ textarea.grow{overflow:hidden;resize:none;min-height:64px}
 .mchip.on{background:color-mix(in srgb,var(--accent) 14%,var(--card));border-color:var(--accent);color:var(--accent);font-weight:700}
 .vstrip.mwrap{flex-wrap:wrap;overflow:visible}
 .mhint{margin:2px 0 6px}
+.subs{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.subp{border-left:3px solid var(--accent);border-radius:10px;background:var(--soft);padding:6px 6px 6px 8px}
+.subh{display:flex;align-items:center;gap:6px;width:100%;font:inherit;font-size:12.5px;text-transform:none;letter-spacing:0;font-weight:700;color:var(--accent);background:none;border:0;padding:2px 2px 6px;text-align:left;cursor:pointer}
+.subh .caret{transition:transform .2s}
+.subp.closed .subh .caret{transform:rotate(-90deg)}
+.subp.closed .subb{display:none}
+.subb > .inp{margin:0;box-shadow:none}
+.psubs{margin:10px 0 2px 6px;padding-left:8px;border-left:3px solid var(--accent);display:flex;flex-direction:column;gap:8px}
+.pfield.collapsed > .psubs{display:none}
+.condnote{color:var(--accent);margin:6px 2px 0}
+.chip.cc{border-color:var(--accent)}
 .hardrow{margin-top:10px}.hardrow .pair{margin-top:4px}
 .pfield.conflict{border-color:var(--bad)!important;box-shadow:0 0 0 1px var(--bad)}
 .ntxt{color:var(--bad);font-weight:600;margin-top:3px}
@@ -582,6 +593,7 @@ function fix(s){
   });
   s.inputs = s.inputs || {};
   syncSets(s);
+  checkConds(s);
   // Do-not-combine pairs: kept symmetric, limited to existing products.
   const ids = new Set(s.products.map(pr => pr.id));
   s.products.forEach(pr => { pr.avoid = [...new Set((Array.isArray(pr.avoid) ? pr.avoid : []).filter(x => ids.has(x) && x !== pr.id))]; if (pr.avoidNote == null) pr.avoidNote = ''; });
@@ -636,6 +648,58 @@ const isMulti = p => (p.type === 'text' || isNumVar(p)) && !!p.multi;
 const hardOK = p => p.type === 'percent' || (p.type === 'number' && !isNumVar(p));   // hard limits: numeric parameters
 // A product has a value for the parameter (one-sided ranges count).
 const hasProdVal = (pr, p) => isBool(p) ? !!pr.flags[p.id] : isMulti(p) ? !!(pr.sets && (pr.sets[p.id] || []).length) : !!rng(pr, p);
+/* ---------- Conditional parameters ----------
+   p.cond = {on: <parent id>, val}: the parameter is shown, and counts toward the match, only while the
+   parent's entered input meets the condition. val: 'yes' / 'no' (Y/N parent), [value ids] (listed
+   parent, any of them), or [min | null, max | null] (Number / % parent). One level: a parent cannot
+   itself be conditional. */
+// Drop conditions whose controlling parameter or values no longer exist.
+function checkConds(s){
+  s.parameters.forEach(p => {
+    const c = p.cond, par = c && s.parameters.find(x => x.id === c.on);
+    if (!c || !par || par === p || par.cond) { p.cond = null; return; }
+    if (isBool(par)) { if (!['yes', 'no'].includes(c.val)) p.cond = null; }
+    else if (isVar(par)) { const ids = new Set(varList(par).map(v => v.id)); c.val = (Array.isArray(c.val) ? c.val : []).filter(x => ids.has(x)); if (!c.val.length) p.cond = null; }
+    else if (!Array.isArray(c.val) || (c.val[0] == null && c.val[1] == null)) p.cond = null;
+  });
+}
+const kidsOf = (p, list = S.parameters) => list.filter(c => c.cond && c.cond.on === p.id);
+function condMet(c){
+  if (!c.cond) return true;
+  const par = P(c.cond.on);
+  if (!par || !(S.entered || []).includes(par.id)) return false;
+  const v = S.inputs[par.id], cv = c.cond.val;
+  if (v == null || (Array.isArray(v) && !v.length)) return false;
+  if (isBool(par)) return v === cv;
+  if (isVar(par)) return (Array.isArray(v) ? v : [v]).some(x => (cv || []).includes(x));
+  const n = Number(v); return (cv[0] == null || n >= cv[0]) && (cv[1] == null || n <= cv[1]);
+}
+// "Drainage is Medium or Large", "Depth ≥ 2 cm", "Infection Level is Local".
+function condText(c, list = S.parameters, valueOnly = false){
+  const par = c.cond && list.find(x => x.id === c.cond.on); if (!par) return '';
+  const cv = c.cond.val, u = par.unit === '%' ? '%' : par.unit ? ' ' + par.unit : '';
+  let t;
+  if (isBool(par)) t = BL[cv];
+  else if (isVar(par)) t = (cv || []).map(id => (varList(par).find(v => v.id === id) || {}).t).filter(Boolean).join(valueOnly ? '; ' : ' or ');
+  else t = cv[0] != null && cv[1] != null ? `${fmt(cv[0])} – ${fmt(cv[1])}${u}` : cv[0] != null ? `≥ ${fmt(cv[0])}${u}` : `≤ ${fmt(cv[1])}${u}`;
+  return valueOnly ? t : `${par.name} ${isBool(par) || isVar(par) ? 'is ' : ''}${t}`;
+}
+// When a condition becomes met, the conditional parameter's default (if any) is applied and counted.
+const TRIG = {};
+function applyTriggers(){
+  const opened = [];
+  S.parameters.forEach(c => {
+    if (!c.cond) return;
+    const met = condMet(c);
+    if (met && !TRIG[c.id]) {
+      opened.push(c.id);
+      if (S.inputs[c.id] == null && c.def != null) S.inputs[c.id] = isMulti(c) ? [c.def] : c.def;
+      if (S.inputs[c.id] != null && !(S.entered || []).includes(c.id)) (S.entered = S.entered || []).push(c.id);
+    }
+    TRIG[c.id] = met;
+  });
+  return opened;
+}
 // Checks between a product's range, its hard limit and the parameter's allowable range.
 // Returns {err: [...blocking], warn: [...advisory]}.
 function rangeChecks(p, lo, hi, ha, hb){
@@ -882,7 +946,7 @@ function refSpan(p){
   return e[1] - e[0] > 0 ? e[1] - e[0] : Math.max(Math.abs(e[1]), 1);
 }
 function rank(){
-  const act = S.parameters.filter(p => inVal(p) != null && (S.entered || []).includes(p.id));
+  const act = S.parameters.filter(p => inVal(p) != null && (S.entered || []).includes(p.id) && condMet(p));
   const spans = {}; act.forEach(p => { if (!isBool(p)) spans[p.id] = refSpan(p); });
   const res = S.products.map(pr => {
     let ws = 0, ss = 0, within = 0, n = 0; const fits = {}, fails = [];
@@ -1354,7 +1418,7 @@ function renderMatch(){
   S.collapsed = S.collapsed || {};
   MKEYS.forEach(k => { if (S.collapsed[k] === undefined) S.collapsed[k] = false; });
   view.innerHTML =
-    section('m-inputs', 'Input Parameters', '', `<div class="grid" id="inGrid">${S.parameters.map(inputCard).join('')}</div>`) +
+    section('m-inputs', 'Input Parameters', '', `<div class="grid" id="inGrid">${S.parameters.filter(p => !p.cond).map(withKids).join('')}</div>`) +
     section('m-result', 'Result', '', '<div id="result"></div>') +
     section('m-list', 'All Products', '', `<div id="list"></div>
       <div class="legend"><span style="--c:var(--good)">Within range / matches</span><span style="--c:var(--warn)">Outside, near</span><span style="--c:var(--bad)">Outside, far / no match</span><span style="--c:var(--gray)">Not relevant / no data</span><span style="--c:var(--bad)">⚠ Do not combine with the selected product</span><span style="--c:var(--gray)">✕ Not suitable (◆ must-match not met)</span></div>`, 'listTitle');
@@ -1394,6 +1458,7 @@ function renderMatch(){
     userInput(id, v);
   }));
   wireSplit();
+  view.querySelectorAll('[data-subt]').forEach(b => b.onclick = () => { b.closest('.subp').classList.toggle('closed'); layoutMatch(); });
   updateMatch();
   layoutMatch();
 }
@@ -1626,7 +1691,27 @@ function inputCard(p){
     : `<input type="range" class="vslider ${v == null || pending ? 'unset' : ''}" data-s="${p.id}" min="${sp.lo}" max="${sp.hi}" step="${sp.step}" value="${pos}" aria-label="Set ${esc(p.name)}">`;
   return `<div class="card inp ${pending ? 'pending' : ''} ${slider ? '' : 'noslider'}" data-tile="${p.id}">${top}${desc}${scale}${slider}</div>`;
 }
+// A parameter's tile with its conditional parameters inside it (collapsible; opened each time shown).
+function withKids(p){
+  const h = inputCard(p), kids = kidsOf(p);
+  if (!kids.length) return h;
+  const k = kids.map(c => `<div class="subp" data-subof="${c.id}" ${condMet(c) ? '' : 'hidden'}>
+      <button type="button" class="subh" data-subt="${c.id}"><span class="caret">▾</span><span>Conditional · when ${esc(condText(c))}</span></button>
+      <div class="subb">${inputCard(c)}</div></div>`).join('');
+  const i = h.lastIndexOf('</div>');
+  return h.slice(0, i) + `<div class="subs">${k}</div>` + h.slice(i);
+}
+function syncConds(opened){
+  view.querySelectorAll('[data-subof]').forEach(el => {
+    const c = P(el.dataset.subof), met = condMet(c);
+    el.hidden = !met;
+    if (opened.includes(c.id)) el.classList.remove('closed');
+  });
+}
 function updateMatch(){
+  const opened = applyTriggers();
+  if (opened.length) save();
+  syncConds(opened);
   let {res, act} = rank();
   S.parameters.forEach(p => {
     if (isBool(p)) return;
@@ -1735,6 +1820,7 @@ function renderParams(box, act){
       (isBool(p) ? chip('Values', 'Yes / No', '', 'type') : isVar(p) ? chip('Values', esc(varList(p).map(v => v.t).join(', ')) || '—', '', 'values') : chip('Allowable', `${fmt(limits(p)[0])} – ${fmt(limits(p)[1])}${p.unit ? ' ' + esc(p.unit) : ''}`, '', 'allow')) +
       (isBool(p) ? '' : chip('Resolution', esc(resText(p)), '', isVar(p) ? 'values' : 'res')) +
       (isMulti(p) ? chip('Selection', 'Multi' + (p.maxSel ? ` (max ${p.maxSel})` : ''), '', 'multi') : '') +
+      (p.cond ? chip('Shown when', esc(condText(p)), 'cc', 'cond') : '') + (kidsOf(p).length ? chip('Controls', esc(kidsOf(p).map(c => c.name).join(', ')), 'cc', 'cond') : '') +
       chip('Default', p.def == null ? '—' : isBool(p) ? BL[p.def] : isVar(p) ? esc(vlabel(p, p.def) ?? '—') : fmt(p.def), '', 'def') +
       chip('Weight', p.weight, '', 'weight'), '', 'params', p.reason)).join('')
     : `<div class="card muted small">No parameters yet. Select <b>+ Add</b> to define each parameter's name, type, allowable range, weight and description.</div>`;
@@ -1836,6 +1922,11 @@ function editParam(id, field){
     <div class="field" id="defBoolWrap"><label>Default value (optional)</label>
       <select id="fDefB"><option value="">Blank</option><option value="yes" ${p.def === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p.def === 'no' ? 'selected' : ''}>No</option></select>
       <div class="xsmall muted" style="margin:5px 2px">Used by Reset to defaults on the Match tab.</div></div>
+    <div class="field" id="condWrap"><label>Show only when (conditional parameter)</label>
+      ${kidsOf(p).length && id ? `<div class="small muted">This parameter controls ${esc(kidsOf(p).map(c => c.name).join(', '))}, so it cannot itself be conditional.</div><select id="fCondOn" style="display:none"><option value=""></option></select>`
+        : `<select id="fCondOn"><option value="">Always shown</option>${S.parameters.filter(x => x.id !== p.id && !x.cond).map(x => `<option value="${x.id}" ${p.cond && p.cond.on === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`}
+      <div id="condVal" style="margin-top:8px"></div>
+      <div class="xsmall muted" style="margin:5px 2px">Shown inside that parameter's tile on Match, and counted in the match only while the condition is met. Its default value applies when the condition is first met.</div></div>
     <div class="field"><label>Default weight: <span id="fWv">${p.weight}</span> of 10</label>
       <input id="fW" type="range" min="0" max="10" step="1" value="${p.weight}">
       <div class="xsmall muted" style="margin:0 2px">0 = excluded · 5 = standard · 10 = critical. Can be changed per product.</div></div>
@@ -1847,6 +1938,19 @@ function editParam(id, field){
       const type = $('#fType').value, t = TYPES[type];
       const name = $('#fName').value.trim();
       const res = type === 'number' ? ($('#fPrec').value === 'var' ? 'var' : Number($('#fPrec').value)) : type === 'percent' ? Number($('#fPrec').value) : null;
+      // Condition
+      let cond = null;
+      const con = $('#fCondOn').value, cpar = con && P(con);
+      if (cpar) {
+        let val;
+        if (isBool(cpar)) val = $('#fCondB').value;
+        else if (isVar(cpar)) { val = [...document.querySelectorAll('#condVal [data-cv].on')].map(b => b.dataset.cv); if (!val.length) return 'Select at least one value for the condition.'; }
+        else { const a = num($('#fCondLo').value), b = num($('#fCondHi').value);
+          if (a == null && b == null) return 'Enter a value for the condition (at or above, at or below, or both).';
+          if (a != null && b != null && a > b) return 'Condition: the lower value exceeds the upper value.';
+          val = [a, b]; }
+        cond = {on: con, val};
+      }
       const probe = {type, res};
       const textList = type === 'text', numVar = type === 'number' && res === 'var';
       if (!name) return 'Enter a parameter name.';
@@ -1888,9 +1992,9 @@ function editParam(id, field){
         slider: type === 'boolean' ? true : $('#fSlider').checked,
         stepAck: type === 'number' || type === 'percent' ? stepAck : null,
         byValue: numVar && $('#fByVal').checked,
-        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(),
+        weight: Number($('#fW').value), details: $('#fDesc').value.trim(), reason: $('#fReason').value.trim(), cond,
         multi: (textList || numVar) && $('#fMulti').checked, maxSel: (textList || numVar) && $('#fMulti').checked && num($('#fMaxSel').value) >= 1 ? Math.round(num($('#fMaxSel').value)) : null});
-      syncSets(S);
+      syncSets(S); checkConds(S);
       // Keep references valid: deleted listed values are cleared; numbers move to the parameter's resolution.
       if (textList || numVar) {
         if (vIdx(p, S.inputs[p.id]) < 0) delete S.inputs[p.id];
@@ -2081,6 +2185,22 @@ function editParam(id, field){
       });
       ['#fType', '#fRound', '#fByVal', '#fMulti'].forEach(s => $(s).onchange = apply);
       apply(); drawVals();
+      // Condition editor: its form follows the type of the controlling parameter.
+      const drawCond = () => {
+        const on = $('#fCondOn').value, box = $('#condVal'), par = on && P(on);
+        const cur = p.cond && p.cond.on === on ? p.cond.val : null;
+        if (!par) { box.innerHTML = ''; return; }
+        if (isBool(par)) box.innerHTML = `<select id="fCondB"><option value="yes" ${cur === 'yes' ? 'selected' : ''}>is Yes</option><option value="no" ${cur === 'no' ? 'selected' : ''}>is No</option></select>`;
+        else if (isVar(par)) {
+          box.innerHTML = `<div class="xsmall muted" style="margin:0 2px 6px">Any of the selected values:</div><div class="xchips">${varList(par).map(v => `<button type="button" class="xchip mchip ${(cur || []).includes(v.id) ? 'on' : ''}" data-cv="${v.id}">${esc(v.t)}</button>`).join('')}</div>`;
+          box.querySelectorAll('[data-cv]').forEach(b => b.onclick = () => b.classList.toggle('on'));
+        } else {
+          const u = par.unit === '%' ? '%' : par.unit || '';
+          box.innerHTML = `<div class="pair"><input id="fCondLo" type="number" step="any" placeholder="At or above" value="${plain(cur ? cur[0] : null)}"><span>to</span><input id="fCondHi" type="number" step="any" placeholder="At or below" value="${plain(cur ? cur[1] : null)}"></div>
+            <div class="xsmall muted" style="margin:5px 2px">${esc(u)} Leave one side blank for "at or above" / "at or below".</div>`;
+        }
+      };
+      $('#fCondOn').onchange = drawCond; drawCond();
       $('#fW').oninput = e => $('#fWv').textContent = e.target.value;
       if ($('#enAll')) {
         const count = () => { const all = [...document.querySelectorAll('[data-en]')]; $('#enCount').textContent = `${all.filter(c => c.checked).length} of ${all.length}`; };
@@ -2093,7 +2213,7 @@ function editParam(id, field){
       if (field) {
         const t = $('#fType').value, md = mode();
         focusField({name: '#fName', type: '#fType', values: '#valList', allow: '#rangeWrap .pair', res: '#fPrec',
-          def: t === 'boolean' ? '#fDefB' : md ? '#fDefV' : '#fDef', weight: '#fW', desc: '#fDesc', reason: '#fReason', multi: '#multiWrap'}[field] || '#fName');
+          def: t === 'boolean' ? '#fDefB' : md ? '#fDefV' : '#fDef', weight: '#fW', desc: '#fDesc', reason: '#fReason', multi: '#multiWrap', cond: '#condWrap'}[field] || '#fName');
       }
     });
 }
@@ -2155,7 +2275,8 @@ function normLink(t){
 function editProduct(id, field){
   const pr = id ? S.products.find(x => x.id === id) : {id: uid('r'), name: '', notes: '', link: '', ranges: {}, flags: {}, rel: {}};
   const hasVal = p => hasProdVal(pr, p);
-  const fields = S.parameters.map(p => {
+  const pfHtml = {};
+  S.parameters.forEach(p => {
     const rel = relOf(pr, p), [lim0, lim1] = limits(p);
     const mm = `${lim0 != null ? `min="${lim0}"` : ''} ${lim1 != null ? `max="${lim1}"` : ''}`;
     let body;
@@ -2184,7 +2305,7 @@ function editProduct(id, field){
     }
     // Existing products open with complete parameters collapsed; new products open expanded.
     const collapsed = id && (!rel.on || hasVal(p));
-    return `<div class="pfield ${rel.on ? '' : 'off'} ${collapsed ? 'collapsed' : ''}" data-pf="${p.id}">
+    const html = `<div class="pfield ${rel.on ? '' : 'off'} ${collapsed ? 'collapsed' : ''}" data-pf="${p.id}">
       <div class="prow">
         <input type="checkbox" class="relcb" data-rel="${p.id}" ${rel.on ? 'checked' : ''} aria-label="${esc(p.name)} relevant">
         <button type="button" class="ptoggle" data-ptog="${p.id}"><span class="caret">▾</span><span class="pname2"><b>${esc(p.name)}</b>${p.unit ? ` <span class="muted small">(${esc(p.unit)})</span>` : ''}</span></button>
@@ -2193,7 +2314,15 @@ function editProduct(id, field){
       <div class="pbody">${body}<div class="xsmall" data-pwarn="${p.id}" style="margin:5px 2px 0"></div>
         <label class="mustcb"><input type="checkbox" data-must="${p.id}" ${pr.must && pr.must[p.id] ? 'checked' : ''}><span><b>◆ Must match</b> <span class="muted">– an input outside these values marks the product Not suitable</span></span></label></div>
       <div class="offnote xsmall muted">Not relevant to this product (weight 0).</div>
+      ${p.cond ? `<div class="xsmall condnote">Conditional · shown on Match when ${esc(condText(p))}</div>` : ''}
     </div>`;
+    pfHtml[p.id] = html;
+  });
+  // Conditional parameters sit inside their controlling parameter, as on Match.
+  const fields = S.parameters.filter(p => !p.cond).map(p => {
+    const kids = kidsOf(p); let h = pfHtml[p.id];
+    if (kids.length) { const i = h.lastIndexOf('</div>'); h = h.slice(0, i) + `<div class="psubs">${kids.map(c => pfHtml[c.id]).join('')}</div>` + h.slice(i); }
+    return h;
   }).join('');
   openSheet(id ? 'Edit Product' : 'New Product', `
     <div class="field"><label>Product name / model</label><input id="fName" value="${esc(pr.name)}"></div>
@@ -2425,7 +2554,7 @@ function parseType(t, unit){
 const cell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function toCSV(d = S){
   const rows = [['[SETTINGS]'], ['Title', d.title], [], ['[PARAMETERS]'],
-    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning']];
+    ['Name', 'Type', 'Unit', 'Range Min', 'Range Max', 'Resolution', 'Step', 'Values', 'Numbering', 'Selection', 'Max Selections', 'Slider', 'Rounding', 'Default', 'Weight', 'Description', 'Reasoning', 'Condition Parameter', 'Condition']];
   d.parameters.forEach(p => rows.push([p.name, TYPE_CSV[p.type], p.unit,
     isList(p) ? '' : plain(p.min), isList(p) ? '' : plain(p.max),
     isBool(p) || p.type === 'text' ? '' : isNumVar(p) ? 'Variable' : plain(resOf(p)),
@@ -2435,7 +2564,8 @@ function toCSV(d = S){
     isList(p) ? (isMulti(p) ? 'Multi' : 'Range') : '', isMulti(p) ? plain(p.maxSel) : '',
     isBool(p) ? '' : (p.slider === false ? 'No' : 'Yes'),
     isBool(p) || isList(p) ? '' : ROUND[p.round],
-    p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details, p.reason || '']));
+    p.def == null ? '' : isBool(p) ? BL[p.def] : isVar(p) ? (vlabel(p, p.def) ?? '') : plain(p.def), plain(p.weight), p.details, p.reason || '',
+    p.cond ? (d.parameters.find(x => x.id === p.cond.on) || {}).name || '' : '', p.cond ? condText(p, d.parameters, true) : '']));
   rows.push([], ['[PRODUCTS]']);
   const h = ['Product', 'Description', 'Link', 'Do Not Combine', 'Combination Note'];
   const mustCol = p => d.products.some(pr => pr.must && pr.must[p.id]);
@@ -2527,6 +2657,8 @@ function fromCSV(text){
         multi: (type === 'text' || res === 'var') && /^multi/i.test(String(col(['selection', 'selection mode']) ?? '').trim()),
         maxSel: num(col(['max selections', 'maximum selections'])) >= 1 ? Math.round(num(col(['max selections', 'maximum selections']))) : null});
       const np = out.parameters.at(-1), dv = col(['default', 'default value']);
+      const cp = String(col(['condition parameter', 'shown when', 'condition on']) ?? '').trim();
+      if (cp) np._cond = [cp, String(col(['condition', 'condition value']) ?? '').trim()];
       np.def = isBool(np) ? (['yes', 'no'].includes(parseBool(dv)) ? parseBool(dv) : null) : isVar(np) ? labId(np, dv) : conformValue(np, num(dv));
     }
     else if (section === '[PRODUCTS]') {
@@ -2575,6 +2707,26 @@ function fromCSV(text){
   if (unknown.size) notes.push(`Values not in the parameter's list were left blank: ${[...unknown].slice(0, 5).join(', ')}${unknown.size > 5 ? '…' : ''}`);
   if (adjusted) notes.push(`${adjusted} product value(s) were adjusted to match their parameter's resolution and range.`);
   if (!out.parameters.length) throw new Error('No parameters were found. The file needs a [PARAMETERS] section with a header row (Name, Type, Unit, Range Min, Range Max, Resolution, Step, Values, Rounding, Default, Weight, Description).');
+  // Conditions refer to other parameters by name, so they are resolved once all are read.
+  out.parameters.forEach(p => {
+    if (!p._cond) return;
+    const [pn, t] = p._cond; delete p._cond;
+    const par = out.parameters.find(x => x.name.toLowerCase() === pn.toLowerCase());
+    if (!par) { notes.push(`${p.name}: condition parameter "${pn}" not found; shown always.`); return; }
+    let val = null;
+    if (isBool(par)) val = ['yes', 'no'].includes(parseBool(t)) ? parseBool(t) : null;
+    else if (isVar(par)) { val = t.split(/[;|]|\bor\b/i).map(x => labId(par, x.trim())).filter(Boolean); if (!val.length) val = null; }
+    else {
+      const n = x => num(x), tt = t.replace(/\s+/g, ' ');
+      let m;
+      if ((m = tt.match(/^(?:≥|>=|>)\s*(-?[\d.]+)/))) val = [n(m[1]), null];
+      else if ((m = tt.match(/^(?:≤|<=|<)\s*(-?[\d.]+)/))) val = [null, n(m[1])];
+      else if ((m = tt.match(/(-?[\d.]+)\s*(?:–|-|to)\s*(-?[\d.]+)/))) val = [n(m[1]), n(m[2])];
+      else if (n(tt) != null) val = [n(tt), n(tt)];
+    }
+    if (val == null) notes.push(`${p.name}: condition "${t}" could not be read; shown always.`);
+    else p.cond = {on: par.id, val};
+  });
   return {data: out, notes};
 }
 $('#fileIn').onchange = async e => {

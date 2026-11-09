@@ -148,3 +148,12 @@ Hold the Settings icon for 2 seconds to turn developer mode on or off (the icon 
 ## Product range checks
 
 In the product editor, each Number or % parameter checks the range against its hard limit and the allowable range. Blocking (Save is held and the parameter is outlined): lower above upper, hard minimum above hard maximum, a range extending beyond the hard limit. Advisory: a hard limit at or outside the allowable range (no effect, or every input not suitable), or a hard limit with no range. Hard limits are rounded to the resolution when left. The same checks appear in Data ▸ Review. Multi-selection is also available for Number parameters with listed values.
+
+## Conditional parameters
+
+In the parameter editor, **Show only when** links a parameter to a controlling parameter (any non-conditional Number, %, Text or Y/N parameter) and a condition: Yes / No for Y/N; any of the selected values for Text or listed values; at or above, at or below, or between for Number and %. A parameter that controls others cannot itself be conditional.
+
+- **Match:** the conditional parameter appears inside the controlling parameter's tile as a collapsible sub-tile. It is hidden until the condition is met and opens each time it appears (and on each launch).
+- **Scoring:** it counts toward the match only while the condition is met. Its default value is applied, and counted, when the condition is first met; until then defaults have no effect.
+- **Products:** in the product editor, conditional parameters are nested inside the controlling parameter, with the same collapsible layout.
+- **CSV:** parameter columns `Condition Parameter` (the controlling parameter's name) and `Condition` (for example `Yes`, `Local; Spreading/Systemic`, `≥ 2 cm`, `2 – 10`).
